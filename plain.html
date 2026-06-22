@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Packiko Video SDK — vanilla (core, CDN)</title>
+  <!--
+    Vanilla demo: CORE SDK from R2 CDN, no bundler/React.
+    Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlayer/PackikoError.
+    The /react useRecorder hook is NOT in this build — this drives the core API directly.
+    Upgrade: bump the version in the <script src> path (v0.1.1 -> v0.1.2).
+
+    Config (apiBaseUrl + pk_) is entered in the input fields below — NO key is stored in
+    this file. The pk_ is publishable (safe in a browser), but kept out of git anyway so
+    there's nothing to redact/gitignore.
+
+    Origin: this page is http://localhost:5173 (same Vite server as the React app). That origin
+    must be registered with ThaiCloud before upload/playback work (contact ThaiCloud to allowlist it).
+  -->
+</head>
+<body>
+  <main style="max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem">
+    <h1>Packiko Video SDK — vanilla</h1>
+
+    <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      <input id="apiInput" value="https://video-uat.packiko.com" placeholder="apiBaseUrl" />
+      <input id="pkInput" placeholder="pk_... (กรอก public key ของคุณ)" />
+    </section>
+
+    <nav style="display:flex;gap:8px;margin-bottom:16px">
+      <button data-tab="record" disabled>Record</button>
+      <button data-tab="playback">Playback</button>
+    </nav>
+
+    <section id="record">
+      <video id="preview" autoplay muted playsinline
+        style="width:100%;background:#000;border-radius:8px"></video>
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button id="startBtn" disabled>Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+      </div>
+      <p>capture: <b id="recState">…</b></p>
+      <p id="recLimit"></p>
+      <p id="upRow" hidden>upload: <b id="upState">—</b> <span id="progress"></span></p>
+      <p id="videoIdRow" hidden>videoId: <code id="videoId"></code> <button id="copyBtn">copy</button></p>
+      <p id="recErr" style="color:crimson"></p>
+    </section>
+
+    <section id="playback" hidden>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="pbInput" placeholder="videoId" style="flex:1" />
+        <button id="loadBtn">Load</button>
+      </div>
+      <p>state: <b id="pbPhase">idle</b></p>
+      <p id="pbErr" style="color:crimson"></p>
+      <video id="pbVideo" controls playsinline style="width:100%;background:#000;border-radius:8px"></video>
+    </section>
+  </main>
+
+  <script src="https://sdk.packiko.com/video/v0.1.1/index.global.js"></script>
+  <script>
+    const { createRecorder, createPlayer, PackikoError } = PackikoVideo;
+    const $ = (id) => document.getElementById(id);
+    const fmtErr = (e) => e instanceof PackikoError ? `${e.code}: ${e.message}` : String(e);
+    // Read config from the inputs at call time (not a const) so the typed pk_/apiBaseUrl are used.
+    const cfg = () => ({ apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() });
+    const ORDER_REF = 'demo-order-001';
+
+    // tabs
+    document.querySelectorAll('nav button').forEach((b) =>
+      b.addEventListener('click', () => {
+        const tab = b.dataset.tab;
+        $('record').hidden = tab !== 'record';
+        $('playback').hidden = tab !== 'playback';
+        document.querySelectorAll('nav button').forEach((x) => { x.disabled = x.dataset.tab === tab; });
+      }));
+
+    // record — capture() only needs the camera (no key), so preview can start before pk_ is typed.
+    let cap, up;
+    (async function initRecorder() {
+      try {
+        cap = await createRecorder(cfg()).capture();   // acquire camera+mic, preview live
+        $('preview').srcObject = cap.previewStream;
+        cap.on('state', (s) => { $('recState').textContent = s; });
+        cap.on('limit', (r) => { $('recLimit').textContent = `auto-stopped: ${r}`; });
+        $('startBtn').disabled = false;
+      } catch (e) { $('recErr').textContent = fmtErr(e); }
+    })();
+
+    $('startBtn').addEventListener('click', () => {
+      cap.start();
+      $('startBtn').disabled = true;
+      $('stopBtn').disabled = false;
+    });
+
+    $('stopBtn').addEventListener('click', async () => {
+      const c = cfg();
+      if (!c.publicKey) { $('recErr').textContent = 'กรอก pk_ ก่อน upload'; return; }
+      $('stopBtn').disabled = true;
+      try {
+        const blob = await cap.stop();                 // resolves finalized Blob
+        // Fresh recorder picks up the pk_ typed before Stop (capture didn't need it). upload(blob)
+        // is independent of which recorder captured — it just needs the bytes + config.
+        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF });
+        $('upRow').hidden = false;
+        up.on('progress', (p) => { $('progress').textContent = `${Math.round(p.ratio * 100)}%`; });
+        up.on('state', (s) => { $('upState').textContent = s; });
+        const { videoId } = await up.promise;          // resolves on 'uploaded'
+        $('videoId').textContent = videoId;
+        $('videoIdRow').hidden = false;
+      } catch (e) { $('recErr').textContent = fmtErr(e); }
+    });
+
+    $('copyBtn').addEventListener('click', () =>
+      navigator.clipboard.writeText($('videoId').textContent));
+
+    window.addEventListener('pagehide', () => cap?.dispose());  // release camera/mic
+
+    // playback
+    $('loadBtn').addEventListener('click', async () => {
+      const id = $('pbInput').value.trim();
+      if (!id) return;
+      const c = cfg();
+      if (!c.publicKey) { $('pbErr').textContent = 'กรอก pk_ ก่อน'; return; }
+      $('pbErr').textContent = '';
+      $('pbVideo').removeAttribute('src');
+      const player = createPlayer(c);
+      const off = player.on('state', (s) => { $('pbPhase').textContent = s; });
+      $('pbPhase').textContent = 'resolving';
+      try {
+        const { url } = await player.resolvePlaybackUrl(id);   // polls until ready
+        $('pbVideo').src = url;
+      } catch (e) {
+        $('pbErr').textContent = fmtErr(e);
+        $('pbPhase').textContent = 'error';
+      } finally { off(); }
+    });
+  </script>
+</body>
+</html>
