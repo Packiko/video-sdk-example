@@ -77,7 +77,7 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 1. Load the IIFE bundle (no install, no bundler):
    ```html
-   <script src="https://sdk.packiko.com/video/v0.1.1/index.global.js"></script>
+   <script src="https://sdk-uat.packiko.com/video/v0.1.1/index.global.js"></script>
    ```
 2. It exposes `window.PackikoVideo` → `createRecorder`, `createPlayer`, `PackikoError`.
    This is the **core** build — there's **no `useRecorder` hook** (that ships only in the
