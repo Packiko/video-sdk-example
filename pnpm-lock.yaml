@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@packiko/video-sdk':
-        specifier: 0.1.1
-        version: 0.1.1(react@19.2.7)
+        specifier: 0.1.2
+        version: 0.1.2(react@19.2.7)
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -291,8 +291,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@packiko/video-sdk@0.1.1':
-    resolution: {integrity: sha512-QvBwdLKp/jBVOMLi3zdmPYN9rWyFY293llf9gI5pjERNJ4l+HdJMKbo6n9BWfKUqqhkRFvLr934deROatIbIKg==, tarball: https://npm.pkg.github.com/download/@packiko/video-sdk/0.1.1/907a196298bbadfa6f5a90f60c246ab3b0e1cb95}
+  '@packiko/video-sdk@0.1.2':
+    resolution: {integrity: sha512-HcZjpE/ITC3xqazJDl0DURDKKi5EaCJEVubML8/qs0gYzaAt0AXzBvhLpRNE1qs3hpISvUTcrHUeKjE3OJV6Rg==, tarball: https://npm.pkg.github.com/download/@packiko/video-sdk/0.1.2/75d16e7a839d072f6ab0201595bd753c998927f9}
     peerDependencies:
       react: ^18 || ^19
 
@@ -861,7 +861,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@packiko/video-sdk@0.1.1(react@19.2.7)':
+  '@packiko/video-sdk@0.1.2(react@19.2.7)':
     dependencies:
       react: 19.2.7
 

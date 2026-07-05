@@ -61,7 +61,8 @@ A `pk_...` key from your ThaiCloud tenant — publishable (safe in a browser bun
 import { useRecorder } from '@packiko/video-sdk/react'
 
 const { previewStream, state, progress, videoId, error, start, stop } =
-  useRecorder({ apiBaseUrl, publicKey, orderRef })   // orderRef is required
+  useRecorder({ apiBaseUrl, publicKey, orderRef,     // orderRef is required
+    upload: { merchantId } })                        // merchantId optional (partner/ZORT) — omit for non-ZORT
 // bind previewStream -> <video>.srcObject; start()/stop(); videoId set when state === 'uploaded'
 
 // Playback — core entry:
@@ -77,7 +78,7 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 1. Load the IIFE bundle (no install, no bundler):
    ```html
-   <script src="https://sdk-uat.packiko.com/video/v0.1.1/index.global.js"></script>
+   <script src="https://sdk-uat.packiko.com/video/v0.1.2/index.global.js"></script>
    ```
 2. It exposes `window.PackikoVideo` → `createRecorder`, `createPlayer`, `PackikoError`.
    This is the **core** build — there's **no `useRecorder` hook** (that ships only in the
@@ -95,7 +96,7 @@ const cap = await rec.capture()              // acquires camera+mic
 video.srcObject = cap.previewStream
 cap.start()
 const blob = await cap.stop()                // finalized Blob
-const up = rec.upload(blob, { orderRef })
+const up = rec.upload(blob, { orderRef, merchantId })  // merchantId optional (partner/ZORT)
 up.on('progress', (p) => { /* p.ratio 0..1 */ })
 const { videoId } = await up.promise         // resolves on 'uploaded'
 cap.dispose()                                // release camera/mic
@@ -104,7 +105,7 @@ cap.dispose()                                // release camera/mic
 const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
 ```
 
-> Upgrading the SDK = bump the version in the script path (`v0.1.1` → `v0.1.2`).
+> Upgrading the SDK = bump the version in the script path (`v0.1.2` → `v0.1.3`).
 
 ---
 
@@ -130,6 +131,8 @@ Every SDK error is a `PackikoError` — branch on `.code` (stable), not `.messag
 | `capture_failed` | capture aborted / MediaRecorder fault |
 | `sas_expired` | upload URL expired (403 on PUT) — `restart()` |
 | `upload_failed` | blob PUT exhausted retries |
+| `merchant_id_invalid` | `merchantId` fails `^[A-Za-z0-9_-]{1,128}$` (checked client-side before any request; also a server code) |
+| `rate_limited` | 429 from the API. During playback polling (`resolvePlaybackUrl`) the SDK backs off and retries automatically — a persistent rate limit there surfaces as `timeout`, not this code. Upload token/confirm 429s surface directly (no auto-retry) |
 | `network_error` | network request failed (no response / unreadable error body) |
 | `origin_not_allowed` | your origin isn't registered with ThaiCloud |
 | `video_not_found` | unknown videoId |
