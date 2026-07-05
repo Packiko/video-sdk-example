@@ -132,7 +132,7 @@ Every SDK error is a `PackikoError` — branch on `.code` (stable), not `.messag
 | `sas_expired` | upload URL expired (403 on PUT) — `restart()` |
 | `upload_failed` | blob PUT exhausted retries |
 | `merchant_id_invalid` | `merchantId` fails `^[A-Za-z0-9_-]{1,128}$` (checked client-side before any request; also a server code) |
-| `rate_limited` | 429 from the API — the SDK backs off and retries automatically before surfacing this |
+| `rate_limited` | 429 from the API. During playback polling (`resolvePlaybackUrl`) the SDK backs off and retries automatically — a persistent rate limit there surfaces as `timeout`, not this code. Upload token/confirm 429s surface directly (no auto-retry) |
 | `network_error` | network request failed (no response / unreadable error body) |
 | `origin_not_allowed` | your origin isn't registered with ThaiCloud |
 | `video_not_found` | unknown videoId |
