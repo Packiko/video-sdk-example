@@ -8,7 +8,7 @@
     Vanilla demo: CORE SDK from R2 CDN, no bundler/React.
     Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlayer/PackikoError.
     The /react useRecorder hook is NOT in this build — this drives the core API directly.
-    Upgrade: bump the version in the <script src> path (v0.1.1 -> v0.1.2).
+    Upgrade: bump the version in the <script src> path (v0.1.2 -> v0.1.3).
 
     Config (apiBaseUrl + pk_) is entered in the input fields below — NO key is stored in
     this file. The pk_ is publishable (safe in a browser), but kept out of git anyway so
@@ -33,6 +33,8 @@
     </nav>
 
     <section id="record">
+      <input id="merchantInput" placeholder="merchant_id (optional — partner/ZORT)"
+        style="width:100%;box-sizing:border-box;margin-bottom:12px" />
       <video id="preview" autoplay muted playsinline
         style="width:100%;background:#000;border-radius:8px"></video>
       <div style="display:flex;gap:8px;margin:12px 0">
@@ -57,7 +59,7 @@
     </section>
   </main>
 
-  <script src="https://sdk-uat.packiko.com/video/v0.1.1/index.global.js"></script>
+  <script src="https://sdk-uat.packiko.com/video/v0.1.2/index.global.js"></script>
   <script>
     const { createRecorder, createPlayer, PackikoError } = PackikoVideo;
     const $ = (id) => document.getElementById(id);
@@ -101,7 +103,10 @@
         const blob = await cap.stop();                 // resolves finalized Blob
         // Fresh recorder picks up the pk_ typed before Stop (capture didn't need it). upload(blob)
         // is independent of which recorder captured — it just needs the bytes + config.
-        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF });
+        // merchantId is optional (partner/ZORT) — omit for non-ZORT uploads. SDK validates
+        // it client-side; a bad value rejects with code merchant_id_invalid (shown via fmtErr).
+        const merchantId = $('merchantInput').value.trim();
+        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF, ...(merchantId && { merchantId }) });
         $('upRow').hidden = false;
         up.on('progress', (p) => { $('progress').textContent = `${Math.round(p.ratio * 100)}%`; });
         up.on('state', (s) => { $('upState').textContent = s; });

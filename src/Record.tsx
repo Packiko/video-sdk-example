@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRecorder } from '@packiko/video-sdk/react'
 import { sdkConfig } from './sdk'
 
@@ -7,9 +7,13 @@ import { sdkConfig } from './sdk'
 const DEMO_ORDER_REF = 'demo-order-001'
 
 export default function Record() {
+  // Optional partner/ZORT merchant id — omitted = non-ZORT upload. The hook reads
+  // upload options at stop-time, so the latest typed value is what gets sent.
+  const [merchantId, setMerchantId] = useState('')
   const { previewStream, state, progress, videoId, error, start, stop } = useRecorder({
     ...sdkConfig,
     orderRef: DEMO_ORDER_REF,
+    upload: merchantId ? { merchantId } : undefined,
   })
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -19,6 +23,10 @@ export default function Record() {
 
   return (
     <section>
+      <input value={merchantId} onChange={(e) => setMerchantId(e.target.value)}
+        placeholder="merchant_id (optional — partner/ZORT)"
+        style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />
+
       <video ref={videoRef} autoPlay muted playsInline
         style={{ width: '100%', background: '#000', borderRadius: 8 }} />
 
