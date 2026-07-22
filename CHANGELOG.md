@@ -4,6 +4,24 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-07-22 — SDK 0.2.0
+
+### Changed
+
+- Bumped `@packiko/video-sdk` `0.1.2` → `0.2.0` (npm, `package.json` + lockfile). 0.2.0 adds optional `items?: VideoItem[]` to `UploadOptions` with client-side pre-validation mirroring the server (Packiko/video#118, ADR 0013).
+
+### Added
+
+- Demo `items` payload in the React upload options (`src/Record.tsx`) — snake_case wire shape, one required-only item (`sku`/`name`/`qty`) and one with the optional `weight_g`. Validated client-side before any byte uploads; failures surface as `items_invalid` / `duplicate_item_sku` through the existing error rendering.
+
+### Documentation
+
+- README: `items` in the Path A usage snippet and new error-table rows `items_invalid` / `duplicate_item_sku`.
+
+### Deferred
+
+- Vanilla CDN path in `plain.html`/README stays at `v0.1.2` — bumping it needs a verified `v0.2.0` CDN artifact (out of scope here).
+
 ## 2026-07-05 — SDK 0.1.2 (#2, #3, PR #4)
 
 ### Changed

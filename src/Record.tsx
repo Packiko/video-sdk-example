@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRecorder } from '@packiko/video-sdk/react'
+import type { VideoItem } from '@packiko/video-sdk'
 import { sdkConfig } from './sdk'
 
 // orderRef is required by UseRecorderOptions (attached to the upload for attribution).
 // ponytail: hardcoded demo ref — a real integrator passes their own order reference.
 const DEMO_ORDER_REF = 'demo-order-001'
+
+// Optional item-details snapshot (SDK 0.2.0) — product data only, never personal data.
+// Snake_case fields mirror the wire shape; validated client-side before any byte uploads
+// (items_invalid / duplicate_item_sku). One required-only item, one with optional weight_g.
+// ponytail: hardcoded demo items — a real integrator sends the order's actual line items.
+const DEMO_ITEMS: VideoItem[] = [
+  { sku: 'SKU-RED-TEE-M', name: 'เสื้อยืดสีแดง ไซซ์ M', qty: 2 },
+  { sku: 'SKU-MUG-CERAMIC', name: 'แก้วเซรามิก', qty: 1, weight_g: 350 },
+]
 
 export default function Record() {
   // Optional partner/ZORT merchant id — omitted = non-ZORT upload. The hook reads
@@ -13,7 +23,7 @@ export default function Record() {
   const { previewStream, state, progress, videoId, error, start, stop } = useRecorder({
     ...sdkConfig,
     orderRef: DEMO_ORDER_REF,
-    upload: merchantId ? { merchantId } : undefined,
+    upload: { items: DEMO_ITEMS, ...(merchantId ? { merchantId } : {}) },
   })
   const videoRef = useRef<HTMLVideoElement>(null)
 
