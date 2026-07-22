@@ -82,7 +82,7 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 1. Load the IIFE bundle (no install, no bundler):
    ```html
-   <script src="https://sdk-uat.packiko.com/video/v0.1.2/index.global.js"></script>
+   <script src="https://sdk-uat.packiko.com/video/v0.2.0/index.global.js"></script>
    ```
 2. It exposes `window.PackikoVideo` → `createRecorder`, `createPlayer`, `PackikoError`.
    This is the **core** build — there's **no `useRecorder` hook** (that ships only in the
@@ -109,7 +109,7 @@ cap.dispose()                                // release camera/mic
 const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
 ```
 
-> Upgrading the SDK = bump the version in the script path (`v0.1.2` → `v0.1.3`).
+> Upgrading the SDK = bump the version in the script path (`v0.2.0` → `v0.2.1`).
 
 ---
 
