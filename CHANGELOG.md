@@ -4,7 +4,14 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
-## 2026-07-22 — SDK 0.2.0
+## 2026-07-22 — CDN v0.2.0 (follow-up to PR #5)
+
+### Changed
+
+- Bumped the vanilla CDN script path `v0.1.2` → `v0.2.0` (`plain.html` + README Path B), resolving the Deferred item below. The `v0.2.0` artifact was human-verified at `https://sdk-uat.packiko.com/video/v0.2.0/index.global.js` (loads, contains the 0.2.0 items validation).
+  - **Action if you forked this example:** the CDN version is pinned, not `latest` — bump the `<script src>` path to `v0.2.0` yourself.
+
+## 2026-07-22 — SDK 0.2.0 (PR #5)
 
 ### Changed
 
@@ -20,7 +27,7 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
 
 ### Deferred
 
-- Vanilla CDN path in `plain.html`/README stays at `v0.1.2` — bumping it needs a verified `v0.2.0` CDN artifact (out of scope here).
+- Vanilla CDN path in `plain.html`/README stayed at `v0.1.2` — bumping it needed a verified `v0.2.0` CDN artifact. Done in the CDN v0.2.0 entry above.
 
 ## 2026-07-05 — SDK 0.1.2 (#2, #3, PR #4)
 
