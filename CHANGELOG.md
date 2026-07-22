@@ -4,6 +4,12 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-07-22 — vanilla items panel (PR #8)
+
+### Added
+
+- `plain.html` renders the `DEMO_ITEMS` set in a small panel above the Start button ("Items ที่จะแนบไปกับวิดีโอนี้") so the demo shows what Start will attach. Rendered from the `DEMO_ITEMS` array itself — edit the array, the panel follows. No items input UI (still out of scope).
+
 ## 2026-07-22 — vanilla items demo (PR #7)
 
 ### Added

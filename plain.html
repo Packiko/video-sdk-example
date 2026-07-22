@@ -37,6 +37,10 @@
         style="width:100%;box-sizing:border-box;margin-bottom:12px" />
       <video id="preview" autoplay muted playsinline
         style="width:100%;background:#000;border-radius:8px"></video>
+      <section style="border:1px solid #ccc;border-radius:8px;padding:8px 12px;margin:12px 0;font-size:14px">
+        <b>Items ที่จะแนบไปกับวิดีโอนี้</b>
+        <ul id="itemsList" style="margin:8px 0 0;padding-left:20px"></ul>
+      </section>
       <div style="display:flex;gap:8px;margin:12px 0">
         <button id="startBtn" disabled>Start</button>
         <button id="stopBtn" disabled>Stop</button>
@@ -72,6 +76,14 @@
       { sku: 'SKU-RED-TEE-M', name: 'เสื้อยืดสีแดง ไซซ์ M', qty: 2 },
       { sku: 'SKU-MUG-CERAMIC', name: 'แก้วเซรามิก', qty: 1, weight_g: 350 },
     ];
+    // Render the panel from DEMO_ITEMS itself — edit the array above, the list follows.
+    for (const it of DEMO_ITEMS) {
+      const li = document.createElement('li');
+      const opt = [it.image_url && `image_url: ${it.image_url}`, it.weight_g != null && `weight_g: ${it.weight_g}`]
+        .filter(Boolean).join(', ');
+      li.textContent = `${it.sku} — ${it.name} ×${it.qty}${opt ? ` (${opt})` : ''}`;
+      $('itemsList').appendChild(li);
+    }
 
     // tabs
     document.querySelectorAll('nav button').forEach((b) =>
