@@ -67,6 +67,11 @@
     // Read config from the inputs at call time (not a const) so the typed pk_/apiBaseUrl are used.
     const cfg = () => ({ apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() });
     const ORDER_REF = 'demo-order-001';
+    // Optional items snapshot (SDK 0.2.0) — same demo set as src/Record.tsx; rules/error codes in README.
+    const DEMO_ITEMS = [
+      { sku: 'SKU-RED-TEE-M', name: 'เสื้อยืดสีแดง ไซซ์ M', qty: 2 },
+      { sku: 'SKU-MUG-CERAMIC', name: 'แก้วเซรามิก', qty: 1, weight_g: 350 },
+    ];
 
     // tabs
     document.querySelectorAll('nav button').forEach((b) =>
@@ -106,7 +111,7 @@
         // merchantId is optional (partner/ZORT) — omit for non-ZORT uploads. SDK validates
         // it client-side; a bad value rejects with code merchant_id_invalid (shown via fmtErr).
         const merchantId = $('merchantInput').value.trim();
-        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF, ...(merchantId && { merchantId }) });
+        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF, items: DEMO_ITEMS, ...(merchantId && { merchantId }) });
         $('upRow').hidden = false;
         up.on('progress', (p) => { $('progress').textContent = `${Math.round(p.ratio * 100)}%`; });
         up.on('state', (s) => { $('upState').textContent = s; });

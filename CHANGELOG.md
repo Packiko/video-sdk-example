@@ -4,6 +4,12 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-07-22 — vanilla items demo (PR #7)
+
+### Added
+
+- Demo `items` payload in the vanilla upload options (`plain.html`) — same hardcoded two-item set as `src/Record.tsx` (one required-only, one with the optional `weight_g`), bringing both integration paths to parity for SDK 0.2.0. Validation failures (`items_invalid` / `duplicate_item_sku`) surface through the existing error rendering.
+
 ## 2026-07-22 — CDN v0.2.0 (follow-up to PR #5)
 
 ### Changed
