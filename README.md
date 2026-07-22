@@ -62,7 +62,11 @@ import { useRecorder } from '@packiko/video-sdk/react'
 
 const { previewStream, state, progress, videoId, error, start, stop } =
   useRecorder({ apiBaseUrl, publicKey, orderRef,     // orderRef is required
-    upload: { merchantId } })                        // merchantId optional (partner/ZORT) — omit for non-ZORT
+    upload: { merchantId,                            // merchantId optional (partner/ZORT) — omit for non-ZORT
+      items: [                                       // items optional (0.2.0) — snake_case wire shape, product data only
+        { sku: 'SKU-1', name: 'เสื้อยืด', qty: 2 },                 // required: sku, name, qty
+        { sku: 'SKU-2', name: 'แก้ว', qty: 1, weight_g: 350 },      // optional: image_url, weight_g (grams)
+      ] } })
 // bind previewStream -> <video>.srcObject; start()/stop(); videoId set when state === 'uploaded'
 
 // Playback — core entry:
@@ -132,6 +136,8 @@ Every SDK error is a `PackikoError` — branch on `.code` (stable), not `.messag
 | `sas_expired` | upload URL expired (403 on PUT) — `restart()` |
 | `upload_failed` | blob PUT exhausted retries |
 | `merchant_id_invalid` | `merchantId` fails `^[A-Za-z0-9_-]{1,128}$` (checked client-side before any request; also a server code) |
+| `items_invalid` | an `items` entry fails validation — missing/bad field, unknown key, or out-of-range value (checked client-side before any byte uploads; also a server code) |
+| `duplicate_item_sku` | two `items` entries share a `sku` after trimming (checked client-side before any byte uploads; also a server code) |
 | `rate_limited` | 429 from the API. During playback polling (`resolvePlaybackUrl`) the SDK backs off and retries automatically — a persistent rate limit there surfaces as `timeout`, not this code. Upload token/confirm 429s surface directly (no auto-retry) |
 | `network_error` | network request failed (no response / unreadable error body) |
 | `origin_not_allowed` | your origin isn't registered with ThaiCloud |
