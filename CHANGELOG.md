@@ -8,7 +8,7 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
 
 ### Added
 
-- `plain.html` renders the `DEMO_ITEMS` set in a small panel above the Start button ("Items ที่จะแนบไปกับวิดีโอนี้") so the demo shows what Start will attach. Rendered from the `DEMO_ITEMS` array itself — edit the array, the panel follows. No items input UI (still out of scope).
+- `plain.html` shows the `DEMO_ITEMS` payload as raw JSON in a small panel above the Start button ("Items ที่จะแนบไปกับ upload (payload จริง)") — the exact wire shape (snake_case keys, optional fields absent) rather than a formatted list, since the vanilla page targets developers. Rendered from the `DEMO_ITEMS` array itself via `JSON.stringify` — edit the array, the panel follows. No items input UI (still out of scope).
 
 ## 2026-07-22 — vanilla items demo (PR #7)
 
