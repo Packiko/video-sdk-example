@@ -4,6 +4,12 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-07-23 — vanilla items panel as raw JSON (PR #9)
+
+### Changed
+
+- `plain.html` items panel now shows the `DEMO_ITEMS` payload as raw JSON (`JSON.stringify`, heading "Items ที่จะแนบไปกับ upload (payload จริง)") instead of a formatted list — the vanilla page targets developers, so the exact wire shape (snake_case keys, value types, optional fields simply absent) is more useful. Still rendered from the array itself — edit the array, the panel follows.
+
 ## 2026-07-22 — vanilla items panel (PR #8)
 
 ### Added
