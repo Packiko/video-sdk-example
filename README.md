@@ -113,6 +113,25 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 ---
 
+## Durable queue + Background Sync (Queue tab)
+
+`@packiko/video-sdk@0.3.0` adds `createUploadQueue` — clips survive refresh,
+crash, and offline periods, and bind to your document later (deferred attach).
+The **Queue** tab demos the full loop with a simulated partner backend
+(`src/queue.ts`, `src/QueueDemo.tsx`):
+
+1. Pick a clip — it enqueues under a fresh order **without** a document → the
+   job parks (waiting on `releaseWhen`).
+2. Click **Create document (nudge)** — `queue.nudge()` re-checks the gate and
+   the clip binds in that same cycle.
+3. Try: refresh mid-upload (resumes without re-uploading), go offline (retries
+   when back), kill the tab and reopen (jobs recover on load).
+
+[`public/sw.js`](public/sw.js) is the SDK README's Background Sync recipe
+verbatim — Chromium wakes it when connectivity returns and it messages open
+pages to `queue.drain()`. Safari/Firefox skip this silently; foreground
+triggers still do everything.
+
 ## Flow
 
 ```
