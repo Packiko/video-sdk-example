@@ -5,7 +5,9 @@ import { logEvent } from './eventLog'
 // ponytail: this module owns app-wide singletons (the queue + its listeners +
 // the SW message listener). A hot swap would create a second queue and stack
 // duplicate handlers — force a full page reload on change instead.
-import.meta.hot?.decline()
+if (import.meta.hot) {
+  import.meta.hot.accept(() => import.meta.hot?.invalidate())
+}
 
 // The partner context carried opaquely by the queue. The SDK never reads it —
 // it only hands it back in callbacks and outcomes.
