@@ -1,155 +1,259 @@
 <!doctype html>
-<html lang="en">
+<html lang="th">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Packiko Video SDK — vanilla (core, CDN)</title>
+  <title>Packiko Video SDK — vanilla (interactive)</title>
   <!--
-    Vanilla demo: CORE SDK from R2 CDN, no bundler/React.
-    Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlayer/PackikoError.
-    The /react useRecorder hook is NOT in this build — this drives the core API directly.
-    Upgrade: bump the version in the <script src> path (v0.2.0 -> v0.2.1).
+    Vanilla interactive walkthrough: CORE SDK from R2 CDN, no bundler/React.
+    Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlayer/
+    createUploadQueue/PackikoError. The /react hooks are NOT in this build.
+    Upgrade: bump the version in the <script src> path (v0.3.0 -> v0.3.1).
 
-    Config (apiBaseUrl + pk_) is entered in the input fields below — NO key is stored in
-    this file. The pk_ is publishable (safe in a browser), but kept out of git anyway so
-    there's nothing to redact/gitignore.
+    Config (apiBaseUrl + pk_) is entered in step 1 — NO key is stored in this file.
+    Origin: this page is http://localhost:5173 (same Vite server as the React app); that
+    origin must be registered with ThaiCloud before upload/playback work.
 
-    Origin: this page is http://localhost:5173 (same Vite server as the React app). That origin
-    must be registered with ThaiCloud before upload/playback work (contact ThaiCloud to allowlist it).
+    Background Sync is demoed in the React app (public/sw.js) — this page keeps to the
+    core flow so it stays copy-paste friendly.
   -->
+  <style>
+    body { font-family: system-ui; margin: 0 }
+    main { max-width: 720px; margin: 2rem auto; padding: 0 1rem }
+    details { border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px; padding: 0 12px }
+    summary { font-weight: 600; padding: 12px 0; cursor: pointer }
+    pre.code { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; font-size: 13px; overflow-x: auto }
+    .hint { color: #666; font-size: 14px }
+    #log { border: 1px solid #ccc; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 260px; overflow-y: auto }
+    #log li { border-bottom: 1px solid #eee; padding: 4px 0; list-style: none }
+    #log ul { padding: 0; margin: 8px 0 0 }
+    video { width: 100%; background: #000; border-radius: 8px }
+    button { margin-right: 6px }
+  </style>
 </head>
 <body>
-  <main style="max-width:640px;margin:2rem auto;font-family:system-ui;padding:0 1rem">
-    <h1>Packiko Video SDK — vanilla</h1>
+  <main>
+    <h1>Packiko Video SDK — vanilla walkthrough</h1>
+    <p class="hint">ทีละขั้นด้วย JavaScript ล้วน ไม่ต้องมี bundler/React — เปิดกล่องไล่จากบนลงล่าง แล้วดูผลจริงใน Event log ล่างสุด</p>
 
-    <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-      <input id="apiInput" value="https://video-uat.packiko.com" placeholder="apiBaseUrl" />
-      <input id="pkInput" placeholder="pk_... (กรอก public key ของคุณ)" />
-    </section>
-
-    <nav style="display:flex;gap:8px;margin-bottom:16px">
-      <button data-tab="record" disabled>Record</button>
-      <button data-tab="playback">Playback</button>
-    </nav>
-
-    <section id="record">
-      <input id="merchantInput" placeholder="merchant_id (optional — partner/ZORT)"
-        style="width:100%;box-sizing:border-box;margin-bottom:12px" />
-      <video id="preview" autoplay muted playsinline
-        style="width:100%;background:#000;border-radius:8px"></video>
-      <section style="border:1px solid #ccc;border-radius:8px;padding:8px 12px;margin:12px 0;font-size:14px">
-        <b>Items ที่จะแนบไปกับ upload (payload จริง)</b>
-        <pre id="itemsJson" style="margin:8px 0 0;font-family:monospace;overflow-x:auto"></pre>
+    <details open>
+      <summary>ขั้น 1 · ตั้งค่า SDK</summary>
+      <p class="hint">ใช้แค่ publishable key (pk_...) — ปลอดภัยในเบราว์เซอร์ ไม่มี secret</p>
+      <pre class="code">&lt;script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"&gt;&lt;/script&gt;
+const { createRecorder, createPlayer, createUploadQueue } = PackikoVideo;
+const config = { apiBaseUrl, publicKey };</pre>
+      <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <input id="apiInput" value="https://video-uat.packiko.com" placeholder="apiBaseUrl" />
+        <input id="pkInput" placeholder="pk_... (กรอก public key ของคุณ)" />
       </section>
-      <div style="display:flex;gap:8px;margin:12px 0">
-        <button id="startBtn" disabled>Start</button>
-        <button id="stopBtn" disabled>Stop</button>
-      </div>
-      <p>capture: <b id="recState">…</b></p>
-      <p id="recLimit"></p>
-      <p id="upRow" hidden>upload: <b id="upState">—</b> <span id="progress"></span></p>
-      <p id="videoIdRow" hidden>videoId: <code id="videoId"></code> <button id="copyBtn">copy</button></p>
-      <p id="recErr" style="color:crimson"></p>
-    </section>
+    </details>
 
-    <section id="playback" hidden>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input id="pbInput" placeholder="videoId" style="flex:1" />
-        <button id="loadBtn">Load</button>
+    <details>
+      <summary>ขั้น 2 · อัดวิดีโอ + อัปโหลด</summary>
+      <p class="hint">กล้องเปิดตอนกางกล่องนี้ · กด Stop แล้วไฟล์อัปโหลดตรงขึ้น storage (ไม่ผ่าน server ของคุณ) ได้ videoId กลับมา</p>
+      <pre class="code">const cap = await createRecorder(config).capture();  // ขอกล้อง + preview
+cap.start();                                          // เริ่มอัด
+const blob = await cap.stop();                        // ได้ไฟล์
+const up = createRecorder(config).upload(blob, { orderRef });
+const { videoId } = await up.promise;                 // token → PUT → confirm</pre>
+      <video id="preview" autoplay muted playsinline></video>
+      <div style="display:flex;gap:8px;margin:12px 0">
+        <button id="startBtn" disabled>เริ่มอัด</button>
+        <button id="stopBtn" disabled>หยุด (แล้วอัปโหลด)</button>
       </div>
-      <p>state: <b id="pbPhase">idle</b></p>
-      <p id="pbErr" style="color:crimson"></p>
-      <video id="pbVideo" controls playsinline style="width:100%;background:#000;border-radius:8px"></video>
+      <p>capture: <b id="recState">ยังไม่เปิดกล้อง</b> <span id="upSpan"></span></p>
+      <p id="videoIdRow" hidden>🎉 videoId: <code id="videoId"></code> <button id="copyBtn">copy</button></p>
+      <p id="recErr" style="color:crimson"></p>
+    </details>
+
+    <details>
+      <summary>ขั้น 3 · เปิดดูวิดีโอ</summary>
+      <p class="hint">เอา videoId ไปขอลิงก์เล่น — ถ้าคลิปยัง transcode ไม่เสร็จ SDK รอให้จนพร้อม</p>
+      <pre class="code">const player = createPlayer(config);
+const { url } = await player.resolvePlaybackUrl(videoId);</pre>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="pbInput" placeholder="videoId จากขั้น 2" style="flex:1" />
+        <button id="loadBtn">เปิดดู</button>
+      </div>
+      <p>state: <b id="pbPhase">idle</b> <span id="pbErr" style="color:crimson"></span></p>
+      <video id="pbVideo" controls playsinline></video>
+    </details>
+
+    <details>
+      <summary>ขั้น 4 · คิวถาวร + ผูกเอกสารทีหลัง</summary>
+      <p class="hint">enqueue() เก็บคลิปลงเครื่อง "ก่อน" ยิง network — refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย · job จะจอดรอจน "เอกสาร" พร้อม (releaseWhen) แล้วค่อยผูก (attach)</p>
+      <pre class="code">const queue = createUploadQueue(config, {
+  releaseWhen: (job) => documentReady(job.context),   // false = จอดรอ ไม่ใช่ fail
+  attach: (job) => bindClip(job.context, job.videoId), // ต้อง idempotent
+});
+await queue.enqueue({ blob, context, orderRef });      // durable ทันที
+await queue.nudge();                                   // เอกสารพร้อมแล้ว เช็คเดี๋ยวนี้</pre>
+      <p><input type="file" id="fileInput" accept="video/*" /> <span class="hint">← เลือกคลิป 1 ไฟล์ (ยังไม่มีเอกสาร → จะจอดรอ)</span></p>
+      <ul id="jobs" style="padding-left:0"></ul>
+    </details>
+
+    <section>
+      <b>Event log</b> <span class="hint">— SDK ทำอะไรอยู่ ดูได้ที่นี่ (ใหม่สุดอยู่บน)</span>
+      <div id="log"><ul id="logList"></ul></div>
     </section>
   </main>
 
-  <script src="https://sdk-uat.packiko.com/video/v0.2.0/index.global.js"></script>
+  <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
   <script>
-    const { createRecorder, createPlayer, PackikoError } = PackikoVideo;
+    const { createRecorder, createPlayer, createUploadQueue, PackikoError } = PackikoVideo;
     const $ = (id) => document.getElementById(id);
     const fmtErr = (e) => e instanceof PackikoError ? `${e.code}: ${e.message}` : String(e);
-    // Read config from the inputs at call time (not a const) so the typed pk_/apiBaseUrl are used.
+    // Read config at call time so the typed pk_/apiBaseUrl are used.
     const cfg = () => ({ apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() });
-    const ORDER_REF = 'demo-order-001';
-    // Optional items snapshot (SDK 0.2.0) — same demo set as src/Record.tsx; rules/error codes in README.
-    const DEMO_ITEMS = [
-      { sku: 'SKU-RED-TEE-M', name: 'เสื้อยืดสีแดง ไซซ์ M', qty: 2 },
-      { sku: 'SKU-MUG-CERAMIC', name: 'แก้วเซรามิก', qty: 1, weight_g: 350 },
-    ];
-    // Show the exact wire payload — edit the array above, the panel follows.
-    $('itemsJson').textContent = JSON.stringify(DEMO_ITEMS, null, 2);
+    const needPk = (el) => { if (!cfg().publicKey) { el.textContent = 'กรอก pk_ ในขั้น 1 ก่อนครับ'; return true } return false };
 
-    // tabs
-    document.querySelectorAll('nav button').forEach((b) =>
-      b.addEventListener('click', () => {
-        const tab = b.dataset.tab;
-        $('record').hidden = tab !== 'record';
-        $('playback').hidden = tab !== 'playback';
-        document.querySelectorAll('nav button').forEach((x) => { x.disabled = x.dataset.tab === tab; });
-      }));
+    // ── event log ──────────────────────────────────────────────────────────
+    function logEvent(source, message, hint) {
+      const li = document.createElement('li');
+      li.innerHTML = `<span style="color:#888">${new Date().toLocaleTimeString()}</span> <code>${source}</code> `;
+      li.appendChild(document.createTextNode(message));
+      if (hint) {
+        const d = document.createElement('div');
+        d.className = 'hint'; d.textContent = '💡 ' + hint;
+        li.appendChild(d);
+      }
+      $('logList').prepend(li);
+    }
 
-    // record — capture() only needs the camera (no key), so preview can start before pk_ is typed.
-    let cap, up;
-    (async function initRecorder() {
+    // ── step 2: record + upload (camera opens when the step is expanded) ───
+    let cap;
+    document.querySelectorAll('details')[1].addEventListener('toggle', async function () {
+      if (!this.open || cap) return;
       try {
-        cap = await createRecorder(cfg()).capture();   // acquire camera+mic, preview live
+        cap = await createRecorder(cfg()).capture();
         $('preview').srcObject = cap.previewStream;
-        cap.on('state', (s) => { $('recState').textContent = s; });
-        cap.on('limit', (r) => { $('recLimit').textContent = `auto-stopped: ${r}`; });
+        cap.on('state', (s) => { $('recState').textContent = s; logEvent('recorder', `capture state → ${s}`); });
         $('startBtn').disabled = false;
+        logEvent('recorder', 'เปิดกล้องแล้ว (getUserMedia)', 'แค่ขอกล้อง ยังไม่ต้องใช้ pk_');
       } catch (e) { $('recErr').textContent = fmtErr(e); }
-    })();
-
+    });
     $('startBtn').addEventListener('click', () => {
       cap.start();
-      $('startBtn').disabled = true;
-      $('stopBtn').disabled = false;
+      $('startBtn').disabled = true; $('stopBtn').disabled = false;
     });
-
     $('stopBtn').addEventListener('click', async () => {
-      const c = cfg();
-      if (!c.publicKey) { $('recErr').textContent = 'กรอก pk_ ก่อน upload'; return; }
+      if (needPk($('recErr'))) return;
       $('stopBtn').disabled = true;
       try {
-        const blob = await cap.stop();                 // resolves finalized Blob
-        // Fresh recorder picks up the pk_ typed before Stop (capture didn't need it). upload(blob)
-        // is independent of which recorder captured — it just needs the bytes + config.
-        // merchantId is optional (partner/ZORT) — omit for non-ZORT uploads. SDK validates
-        // it client-side; a bad value rejects with code merchant_id_invalid (shown via fmtErr).
-        const merchantId = $('merchantInput').value.trim();
-        up = createRecorder(c).upload(blob, { orderRef: ORDER_REF, items: DEMO_ITEMS, ...(merchantId && { merchantId }) });
-        $('upRow').hidden = false;
-        up.on('progress', (p) => { $('progress').textContent = `${Math.round(p.ratio * 100)}%`; });
-        up.on('state', (s) => { $('upState').textContent = s; });
-        const { videoId } = await up.promise;          // resolves on 'uploaded'
-        $('videoId').textContent = videoId;
-        $('videoIdRow').hidden = false;
-      } catch (e) { $('recErr').textContent = fmtErr(e); }
+        const blob = await cap.stop();
+        logEvent('recorder', `ได้ไฟล์แล้ว (${Math.round(blob.size / 1024)} KB) — เริ่มอัปโหลด`, 'อัปโหลด 3 จังหวะ: ขอ token → ส่งไฟล์ → ยืนยัน');
+        const up = createRecorder(cfg()).upload(blob, { orderRef: 'plain-demo-001' });
+        up.on('progress', (p) => { $('upSpan').textContent = `· upload ${Math.round(p.ratio * 100)}%`; });
+        up.on('state', (s) => logEvent('recorder', `upload state → ${s}`));
+        const { videoId } = await up.promise;
+        $('videoId').textContent = videoId; $('videoIdRow').hidden = false;
+        $('pbInput').value = videoId; // หยอดให้ขั้น 3 เลย
+        logEvent('recorder', `🎉 ได้ videoId: ${videoId}`, 'ใส่ให้ในขั้น 3 แล้ว — กางกล่องต่อได้เลย');
+      } catch (e) { $('recErr').textContent = fmtErr(e); logEvent('recorder', `error: ${fmtErr(e)}`); }
     });
+    $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('videoId').textContent));
+    window.addEventListener('pagehide', () => cap?.dispose());
 
-    $('copyBtn').addEventListener('click', () =>
-      navigator.clipboard.writeText($('videoId').textContent));
-
-    window.addEventListener('pagehide', () => cap?.dispose());  // release camera/mic
-
-    // playback
+    // ── step 3: playback ───────────────────────────────────────────────────
     $('loadBtn').addEventListener('click', async () => {
       const id = $('pbInput').value.trim();
-      if (!id) return;
-      const c = cfg();
-      if (!c.publicKey) { $('pbErr').textContent = 'กรอก pk_ ก่อน'; return; }
-      $('pbErr').textContent = '';
-      $('pbVideo').removeAttribute('src');
-      const player = createPlayer(c);
-      const off = player.on('state', (s) => { $('pbPhase').textContent = s; });
+      if (!id || needPk($('pbErr'))) return;
+      $('pbErr').textContent = ''; $('pbVideo').removeAttribute('src');
+      const player = createPlayer(cfg());
+      const off = player.on('state', (s) => { $('pbPhase').textContent = s; logEvent('playback', `state → ${s}`); });
       $('pbPhase').textContent = 'resolving';
+      logEvent('playback', `resolvePlaybackUrl(${id})`, 'ยัง transcode ไม่เสร็จ = SDK รอให้');
       try {
-        const { url } = await player.resolvePlaybackUrl(id);   // polls until ready
+        const { url } = await player.resolvePlaybackUrl(id);
         $('pbVideo').src = url;
-      } catch (e) {
-        $('pbErr').textContent = fmtErr(e);
-        $('pbPhase').textContent = 'error';
-      } finally { off(); }
+        logEvent('playback', 'ได้ลิงก์เล่นแล้ว', 'ลิงก์มีอายุจำกัด — ขอใหม่จาก videoId เดิมได้เสมอ');
+      } catch (e) { $('pbErr').textContent = fmtErr(e); $('pbPhase').textContent = 'error'; }
+      finally { off(); }
+    });
+
+    // ── step 4: durable queue + deferred attach ────────────────────────────
+    // Simulated partner backend: a Set of "documents" + idempotent attach —
+    // the same pattern as the React demo (src/queue.ts).
+    let queue;
+    const docs = new Set();
+    const bindings = new Map(); // orderRef → videoId
+    const stageHints = {
+      queued: 'คลิปอยู่ในเครื่องแล้ว (durable) — ปิดแท็บก็ไม่หาย',
+      uploading: 'กำลังส่งไฟล์ขึ้น server',
+      uploaded: 'ไฟล์ถึง server แล้ว — retry จะไม่อัปไฟล์ซ้ำ',
+      attaching: 'กำลังเรียก attach เพื่อผูกคลิปกับเอกสาร',
+      retry: 'จอดรอ/รอรอบถัดไป — สร้างเอกสารเพื่อ nudge ได้',
+      review: 'ต้องมีคนช่วย — แก้สาเหตุแล้วกด Retry',
+    };
+    const lastStages = new Map();
+    function getQueue() {
+      if (queue) return queue;
+      queue = createUploadQueue(cfg(), {
+        releaseWhen: (job) => docs.has(job.context.orderRef),
+        attach: (job) => {
+          if (!docs.has(job.context.orderRef)) return { status: 'parked' };
+          const existing = bindings.get(job.context.orderRef);
+          // idempotent: ซ้ำตัวเดิม = ok · คลิปอื่นชน order ที่ผูกแล้ว = conflict
+          if (existing !== undefined && existing !== job.videoId) return { status: 'failed', code: 'order_already_bound' };
+          bindings.set(job.context.orderRef, job.videoId);
+          return { status: 'ok', refId: `${job.context.orderRef}:${job.videoId}` };
+        },
+      });
+      queue.subscribe(() => {
+        const jobs = queue.getSnapshot().jobs;
+        for (const job of jobs) {
+          if (lastStages.get(job.id) !== job.stage) {
+            lastStages.set(job.id, job.stage);
+            logEvent('queue', `${job.context.orderRef} → ${job.stage}`, stageHints[job.stage]);
+          }
+        }
+        for (const id of [...lastStages.keys()]) if (!jobs.some((j) => j.id === id)) lastStages.delete(id);
+        renderJobs(jobs);
+      });
+      queue.onOutcome((o) => {
+        if (o.status === 'bound') logEvent('queue', `🎉 ${o.context.orderRef} ผูกสำเร็จ → ${o.videoId}`, 'ครบวงจร — คลิปในเครื่องถูกลบแล้ว');
+        else logEvent('queue', `${o.context.orderRef} ไม่สำเร็จ (${o.code})`, 'job รออยู่ใน review');
+      });
+      return queue;
+    }
+    function renderJobs(jobs) {
+      const ul = $('jobs');
+      ul.replaceChildren();
+      for (const job of jobs) {
+        const li = document.createElement('li');
+        li.style.cssText = 'list-style:none;margin-bottom:8px';
+        li.append(Object.assign(document.createElement('code'), { textContent: job.context.orderRef }), ` — ${job.stage} `);
+        if (!docs.has(job.context.orderRef)) {
+          const b = document.createElement('button');
+          b.textContent = 'สร้างเอกสาร (nudge)';
+          b.onclick = () => {
+            docs.add(job.context.orderRef);
+            logEvent('queue', `สร้างเอกสารของ ${job.context.orderRef} → nudge()`, 'job ที่จอดรอถูกเช็คทันที ไม่รอ timer');
+            void queue.nudge((j) => j.context.orderRef === job.context.orderRef);
+          };
+          li.append(b);
+        }
+        if (job.stage === 'retry' || job.stage === 'review') {
+          const b = document.createElement('button');
+          b.textContent = 'Retry';
+          b.onclick = () => void queue.retry(job.id);
+          li.append(b);
+        }
+        const dl = document.createElement('button');
+        dl.textContent = 'Download';
+        dl.onclick = () => queue.download(job.id);
+        li.append(dl);
+        ul.append(li);
+      }
+    }
+    $('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      if (needPk($('recErr'))) return;
+      const orderRef = `plain-${Date.now()}`;
+      await getQueue().enqueue({ blob: file, context: { orderRef }, orderRef });
+      logEvent('queue', `enqueue(${orderRef})`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
     });
   </script>
 </body>

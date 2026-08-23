@@ -6,6 +6,17 @@ Two integration paths from one repo:
 - **Path A — React (npm):** `@packiko/video-sdk` via GitHub Packages, bundled with Vite. See `src/Record.tsx`, `src/Playback.tsx`.
 - **Path B — vanilla (`<script>` CDN):** zero-build, `window.PackikoVideo` from R2. See `plain.html`.
 
+Both paths are **interactive walkthroughs** (built from real partner feedback — the raw
+examples were hard to follow):
+
+- The React app opens in **📖 Learn** — a 6-step guided wizard (setup → record+upload →
+  playback → durable enqueue → deferred attach → resilience), each step showing the exact
+  code, a plain-Thai explanation, and a live widget running it for real. **🎮 Playground**
+  is free-play: the demos beside a live **event log** narrating every SDK call and state
+  change with hints.
+- `plain.html` is the same walkthrough in vanilla JS: numbered accordion steps with code +
+  live widgets + the event log at the bottom.
+
 ## Prerequisites
 
 ### Origin registration
@@ -82,7 +93,7 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 1. Load the IIFE bundle (no install, no bundler):
    ```html
-   <script src="https://sdk-uat.packiko.com/video/v0.2.0/index.global.js"></script>
+   <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
    ```
 2. It exposes `window.PackikoVideo` → `createRecorder`, `createPlayer`, `PackikoError`.
    This is the **core** build — there's **no `useRecorder` hook** (that ships only in the
@@ -109,11 +120,11 @@ cap.dispose()                                // release camera/mic
 const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
 ```
 
-> Upgrading the SDK = bump the version in the script path (`v0.2.0` → `v0.2.1`).
+> Upgrading the SDK = bump the version in the script path (`v0.3.0` → `v0.3.1`).
 
 ---
 
-## Durable queue + Background Sync (Queue tab)
+## Durable queue + Background Sync (Learn steps 4-6 · Playground → Queue)
 
 `@packiko/video-sdk@0.3.0` adds `createUploadQueue` — clips survive refresh,
 crash, and offline periods, and bind to your document later (deferred attach).
