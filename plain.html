@@ -108,10 +108,15 @@ await queue.nudge();                                   // เอกสารพ�
     const needPk = (el) => { if (!cfg().publicKey) { el.textContent = 'กรอก pk_ ในขั้น 1 ก่อนครับ'; return true } return false };
 
     // ── event log ──────────────────────────────────────────────────────────
+    // DOM APIs only — never innerHTML with interpolated values, even in a demo.
     function logEvent(source, message, hint) {
       const li = document.createElement('li');
-      li.innerHTML = `<span style="color:#888">${new Date().toLocaleTimeString()}</span> <code>${source}</code> `;
-      li.appendChild(document.createTextNode(message));
+      const time = document.createElement('span');
+      time.style.color = '#888';
+      time.textContent = new Date().toLocaleTimeString();
+      const src = document.createElement('code');
+      src.textContent = source;
+      li.append(time, ' ', src, ' ', message);
       if (hint) {
         const d = document.createElement('div');
         d.className = 'hint'; d.textContent = '💡 ' + hint;

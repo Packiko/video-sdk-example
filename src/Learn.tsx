@@ -88,17 +88,17 @@ function PlaybackStep({ videoId }: { videoId: string }) {
 }
 
 // steps 4-6 share the app queue ─────────────────────────────────────────────
-function QueueStep({ onOrderRef }: { onOrderRef: (ref: string) => void }) {
+function QueueStep({ orderRef, onOrderRef }: { orderRef: string; onOrderRef: (ref: string) => void }) {
+  // The active order lives in the wizard (lifted state), not here — this step
+  // unmounts when you navigate away and must not forget the job it created.
   const { jobs } = useUploadQueue(queue)
-  const [ref, setRef] = useState('')
   const enqueue = async (file: File) => {
-    const orderRef = `learn-${Date.now()}`
-    setRef(orderRef)
-    onOrderRef(orderRef)
-    await queue.enqueue({ blob: file, context: { orderRef }, orderRef })
+    const ref = `learn-${Date.now()}`
+    onOrderRef(ref)
+    await queue.enqueue({ blob: file, context: { orderRef: ref }, orderRef: ref })
     requestBackgroundSync()
   }
-  const job = jobs.find((j) => j.context.orderRef === ref)
+  const job = jobs.find((j) => j.context.orderRef === orderRef)
   return (
     <div style={box}>
       <p>
@@ -114,8 +114,8 @@ function QueueStep({ onOrderRef }: { onOrderRef: (ref: string) => void }) {
           {job.stage === 'retry' && ' — จอดรอเอกสารอยู่ (เราตั้งใจยังไม่สร้างเอกสาร) ✋ ไปขั้นถัดไปเลย'}
         </p>
       )}
-      {ref && !job && <p>🎉 job หายจากคิว = อัปโหลด + ผูกครบแล้ว (ถ้าผูกก่อนถึงขั้นถัดไป แปลว่าเอกสารมีอยู่แล้ว)</p>}
-      {!ref && <p style={{ color: '#888' }}>เลือกไฟล์วิดีโอ 1 ไฟล์ — คลิปจะถูกเก็บลงเครื่องก่อน แล้วค่อยอัปโหลดเบื้องหลัง</p>}
+      {orderRef && !job && <p>🎉 job หายจากคิว = อัปโหลด + ผูกครบแล้ว (ถ้าผูกก่อนถึงขั้นถัดไป แปลว่าเอกสารมีอยู่แล้ว)</p>}
+      {!orderRef && <p style={{ color: '#888' }}>เลือกไฟล์วิดีโอ 1 ไฟล์ — คลิปจะถูกเก็บลงเครื่องก่อน แล้วค่อยอัปโหลดเบื้องหลัง</p>}
     </div>
   )
 }
@@ -193,7 +193,7 @@ const { url } = await player.resolvePlaybackUrl(videoId)`,
   attach: (job) => bindClip(job.context, job.videoId),
 })
 await queue.enqueue({ blob, context, orderRef })  // durable ทันที`,
-      body: <QueueStep onOrderRef={setLearnOrderRef} />,
+      body: <QueueStep orderRef={learnOrderRef} onOrderRef={setLearnOrderRef} />,
     },
     {
       title: '5 · ผูกกับเอกสารทีหลัง (deferred attach)',
