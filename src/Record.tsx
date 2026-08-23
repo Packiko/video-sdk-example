@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRecorder } from '@packiko/video-sdk/react'
 import type { VideoItem } from '@packiko/video-sdk'
 import { sdkConfig } from './sdk'
+import { logEvent } from './eventLog'
 
 // orderRef is required by UseRecorderOptions (attached to the upload for attribution).
 // ponytail: hardcoded demo ref — a real integrator passes their own order reference.
@@ -30,6 +31,16 @@ export default function Record() {
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = previewStream
   }, [previewStream])
+
+  useEffect(() => {
+    logEvent('recorder', `state → ${state}`)
+  }, [state])
+  useEffect(() => {
+    if (videoId) logEvent('recorder', `ได้ videoId: ${videoId}`, 'อัปโหลด + ยืนยันครบแล้ว — เอา id นี้ไปเปิดดูในแท็บ Playback ได้')
+  }, [videoId])
+  useEffect(() => {
+    if (error) logEvent('recorder', `error: ${error.code}`, error.message)
+  }, [error])
 
   return (
     <section>
