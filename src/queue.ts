@@ -32,7 +32,14 @@ export const queue = createUploadQueue<Ctx>(sdkConfig, {
   releaseWhen: (job) => documents.has(job.context.orderRef),
   attach: (job): AttachResult => {
     if (!documents.has(job.context.orderRef)) return { status: 'parked' } // gate re-arms
-    bindings.set(job.context.orderRef, job.videoId) // repeat call for a bound clip stays 'ok'
+    const existing = bindings.get(job.context.orderRef)
+    // Idempotent by contract: a repeat call for the already-bound clip must
+    // stay 'ok' — but a DIFFERENT clip against a bound order is a conflict,
+    // not something to silently overwrite.
+    if (existing !== undefined && existing !== job.videoId) {
+      return { status: 'failed', code: 'order_already_bound' }
+    }
+    bindings.set(job.context.orderRef, job.videoId)
     return { status: 'ok', refId: `${job.context.orderRef}:${job.videoId}` }
   },
 })
