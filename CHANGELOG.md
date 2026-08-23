@@ -4,6 +4,13 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — CDN v0.3.0 verified
+
+### Changed
+
+- The `v0.3.0` CDN artifact referenced by `plain.html`/README is live and verified at `https://sdk-uat.packiko.com/video/v0.3.0/index.global.js` (HTTP 200, all SDK v2 symbols present, sha256 byte-identical to the build from the `sdk-v0.3.0` tag).
+  - **Action if you forked this example:** the CDN version is pinned, not `latest` — bump the `<script src>` path to `v0.3.0` yourself.
+
 ## 2026-08-23 — interactive walkthroughs, both paths (SDK 0.3.0)
 
 ### Added
