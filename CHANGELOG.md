@@ -4,6 +4,19 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-23 — interactive walkthroughs, both paths (SDK 0.3.0)
+
+### Added
+
+- **📖 Learn mode** (React): 6-step guided wizard — setup, record+upload, playback, durable enqueue, deferred attach, resilience — each step shows the exact code, a plain-Thai explanation, and a live widget running it for real. Built from ZORTOUT developer feedback that the raw examples were hard to follow.
+- **🎮 Playground mode** (React): the existing Record/Playback/Queue demos beside a live event log narrating every SDK call/state change with hints (`src/eventLog.ts`, `src/EventLogPanel.tsx`).
+- Queue demo tab + Background Sync service worker (`public/sw.js` — the SDK README recipe verbatim) with a simulated partner backend (`src/queue.ts`: in-memory document store, idempotent attach).
+
+### Changed
+
+- `plain.html` reworked into the same interactive walkthrough in vanilla JS: numbered accordion steps (config → record+upload → playback → queue + deferred attach) with code snippets, live widgets, and the event log; CDN script bumped to `v0.3.0` (`createUploadQueue` now available on `window.PackikoVideo`).
+- `@packiko/video-sdk` dependency bumped to `^0.3.0`.
+
 ## 2026-07-23 — vanilla items panel as raw JSON (PR #9)
 
 ### Changed
