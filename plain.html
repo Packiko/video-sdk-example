@@ -10,8 +10,9 @@
     createUploadQueue/describeError/PackikoError. The /react hooks are NOT in this build.
     Upgrade: bump the version in the <script src> path (v0.3.0 -> v0.3.1).
 
-    Config (apiBaseUrl + pk_) is entered in step 1 — the Mode A key is never stored in
-    this file. The Mode B key in step 5 IS prefilled (deliberate: a Mode B key is
+    Step 1 is the auth-mode choice (Mode A vs Mode B) — deliberately first and with no
+    default: it decides which key the rest of the page uses. The Mode A key is never
+    stored in this file; the Mode B key IS prefilled (deliberate: a Mode B key is
     enforce-or-reject — inert without a live JWT from its realm).
     Origin rule: a pk_ works ONLY from the origins it was registered for — the deployed
     copy of this page works with keys registered for example.packiko.com; a partner's own
@@ -75,21 +76,60 @@
         <li><b>Publishable key</b> (<code>pk_...</code>) จาก tenant ของคุณ — ปลอดภัยในเบราว์เซอร์ ไม่มี secret</li>
         <li><b>สิทธิ์กล้อง+ไมค์</b> — เบราว์เซอร์จะถามตอนเปิดขั้น 2</li>
       </ul>
-      <span class="hint">อยากลองครบวงจรบนหน้านี้เลย: ใช้ Mode B ในขั้น 5 (key demo เตรียมไว้ให้แล้ว) หรือขอ key ที่ขึ้นทะเบียนกับ <code>example.packiko.com</code></span>
+      <span class="hint">อยากลองครบวงจรบนหน้านี้เลย: เลือก Mode B ในขั้น 1 (key demo เตรียมไว้ให้แล้ว) หรือขอ key ที่ขึ้นทะเบียนกับ <code>example.packiko.com</code></span>
     </div>
 
     <details open id="step1">
-      <summary>ขั้น 1 · ตั้งค่า SDK <span class="st" id="st1">ยังไม่กรอก key</span></summary>
-      <pre class="code">&lt;script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"&gt;&lt;/script&gt;
+      <summary>ขั้น 1 · เลือกโหมด auth + ตั้งค่า SDK <span class="st" id="st1">ยังไม่เลือกโหมด</span></summary>
+      <p class="hint">❓ คำถามเดียวตัดสินทุกอย่างที่เหลือ: ระบบ login ของคุณใช้ <b>IdP แบบ OIDC
+        ที่เผยแพร่ JWKS</b> ไหม (Keycloak, Auth0, Entra ID — มี <code>.well-known/openid-configuration</code>)?</p>
+      <div class="row">
+        <button id="modeABtn">❌ ไม่ / auth ทำเอง → Mode A</button>
+        <button id="modeBBtn">✅ ใช่ → Mode B</button>
+      </div>
+
+      <section id="modeAPanel" hidden>
+        <p class="hint"><b>Mode A</b> — ใช้แค่ publishable key (pk_...) ปลอดภัยในเบราว์เซอร์ ไม่มี secret ·
+          "วิดีโอเป็นของ user ไหน" คุณรับรองเองผ่าน <code>externalUserRef</code> (server ไม่ verify) ·
+          ระบบ token แบบ HS256 (symmetric) server verify ข้ามองค์กรไม่ได้ จึงอยู่กลุ่มนี้</p>
+        <pre class="code">&lt;script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"&gt;&lt;/script&gt;
 const { createRecorder, createPlaybackResolver, createUploadQueue } = PackikoVideo;
 const config = { apiBaseUrl, publicKey };</pre>
-      <div class="field"><label for="apiInput">apiBaseUrl</label><input id="apiInput" value="https://video-uat.packiko.com" /></div>
-      <div class="field"><label for="pkInput">publishable key</label><input id="pkInput" placeholder="pk_... (key ของ tenant คุณ · Mode A)" /></div>
-      <div class="field">
-        <label for="userRefInput">รหัสผู้ใช้ในระบบของคุณ (ไม่บังคับ · Mode A)</label>
-        <input id="userRefInput" placeholder='เช่น "emp-1042" — ระบบคุณยืนยันตัวตนเอง แล้วส่ง ref มาผูกกับคลิป' />
-        <span class="hint">ส่งเป็น <code>externalUserRef</code> ตอนอัปโหลด — คลิปบันทึกว่าใครเป็นคนอัด · ถ้า login ผ่าน Mode B (ขั้น 5) ตัวตนมาจาก token เอง ช่องนี้ไม่ถูกใช้</span>
-      </div>
+        <div class="field"><label for="pkInput">publishable key</label><input id="pkInput" placeholder="pk_... (key ของ tenant คุณ · Mode A)" /></div>
+        <div class="field">
+          <label for="userRefInput">รหัสผู้ใช้ในระบบของคุณ (ไม่บังคับ)</label>
+          <input id="userRefInput" placeholder='เช่น "emp-1042" — ระบบคุณยืนยันตัวตนเอง แล้วส่ง ref มาผูกกับคลิป' />
+          <span class="hint">ส่งเป็น <code>externalUserRef</code> ตอนอัปโหลด — คลิปบันทึกว่าใครเป็นคนอัด</span>
+        </div>
+      </section>
+
+      <section id="modeBPanel" hidden>
+        <p class="hint"><b>Mode B</b> — user login กับ IdP ของคุณ → SDK แนบ JWT เป็น <code>X-User-Token</code>
+          ให้ทุก request → server verify ลายเซ็น/issuer/วันหมดอายุผ่าน JWKS ของคุณ → วิดีโอผูกกับ
+          <code>sub</code> ที่ verify แล้ว — ต่อให้ pk_ หลุด คนอื่นก็ mint ไม่ได้เพราะไม่มี token จริง ·
+          enforce-or-reject: token หาย/หมดอายุ = 401 เสมอ ไม่หล่นกลับ Mode A เงียบๆ</p>
+        <pre class="code">// vanilla: เพิ่ม getUserToken ใน config — ที่เหลือ SDK จัดการเอง
+import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
+const kc = new Keycloak({ url, realm, clientId });
+await kc.init({ pkceMethod: 'S256' });            // login เป็น redirect ไป-กลับ
+const config = { apiBaseUrl, publicKey,            // pk ตัวที่เปิด Mode B ไว้
+  getUserToken: async () => { await kc.updateToken(30); return kc.token; } };</pre>
+        <div class="field"><label for="mbPkInput">publishable key (Mode B)</label><input id="mbPkInput" /></div>
+        <div class="field"><label for="kcUrlInput">Keycloak URL</label><input id="kcUrlInput" /></div>
+        <div class="field"><label for="kcRealmInput">realm</label><input id="kcRealmInput" /></div>
+        <div class="field"><label for="kcClientInput">client id</label><input id="kcClientInput" /></div>
+        <p class="hint">ค่า default = demo tenant ของ ThaiCloud (UAT) — ชี้ IdP ของคุณเองได้โดยแก้ 4 ช่องนี้</p>
+        <div class="row">
+          <button id="kcLoginBtn" class="go" disabled>🔐 Login (Mode B)</button>
+          <button id="kcLogoutBtn" hidden>Logout</button>
+        </div>
+        <p>สถานะ: <b id="mbState">กำลังเตรียม…</b></p>
+      </section>
+
+      <section id="apiRow" hidden>
+        <div class="field"><label for="apiInput">apiBaseUrl</label><input id="apiInput" value="https://video-uat.packiko.com" /></div>
+        <span class="hint">API base URL ใช้ร่วมทั้งสองโหมด · ขั้น 2-4 ข้างล่างใช้ config จากขั้นนี้อัตโนมัติ</span>
+      </section>
     </details>
 
     <details id="step2">
@@ -149,34 +189,6 @@ await queue.nudge();                                   // เอกสารพ�
       <ul id="jobs"></ul>
     </details>
 
-    <details id="step5">
-      <summary>ขั้น 5 · Mode B — User JWT (ทางเลือก) <span class="st" id="st5">—</span></summary>
-      <p class="hint">คำถามเดียวตัดสิน: ระบบ login ของคุณใช้ <b>IdP แบบ OIDC ที่เผยแพร่ JWKS</b> ไหม
-        (Keycloak, Auth0, Entra ID — มี <code>.well-known/openid-configuration</code>)?
-        <br>• <b>ไม่ / token เป็น HS256 (symmetric)</b> → server verify ให้ไม่ได้ — ใช้ขั้น 1-4 (Mode A)
-        แล้วรับรอง user เองผ่าน <code>externalUserRef</code> ตามเดิม
-        <br>• <b>ใช่</b> → Mode B: ทุก request แนบ JWT ให้ server verify — ต่อให้ pk_ หลุด
-        คนอื่นก็ mint ไม่ได้เพราะไม่มี token จริง และวิดีโอผูกกับ user ที่ verify แล้ว</p>
-      <pre class="code">// vanilla: เพิ่ม getUserToken ใน config — SDK แนบ X-User-Token ให้ทุก request เอง
-import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
-const kc = new Keycloak({ url, realm, clientId });
-await kc.init({ pkceMethod: 'S256' });            // login เป็น redirect ไป-กลับ
-const config = { apiBaseUrl, publicKey,            // pk ตัวที่เปิด Mode B ไว้
-  getUserToken: async () => { await kc.updateToken(30); return kc.token; } };</pre>
-      <div class="field"><label for="mbPkInput">publishable key (Mode B)</label><input id="mbPkInput" /></div>
-      <div class="field"><label for="kcUrlInput">Keycloak URL</label><input id="kcUrlInput" /></div>
-      <div class="field"><label for="kcRealmInput">realm</label><input id="kcRealmInput" /></div>
-      <div class="field"><label for="kcClientInput">client id</label><input id="kcClientInput" /></div>
-      <p class="hint">ค่า default = demo tenant ของ ThaiCloud (UAT) — ชี้ IdP ของคุณเองได้โดยแก้ 4 ช่องนี้</p>
-      <div class="row">
-        <button id="kcLoginBtn" class="go" disabled>🔐 Login (Mode B)</button>
-        <button id="kcLogoutBtn" hidden>Logout (กลับ Mode A)</button>
-      </div>
-      <p>สถานะ: <b id="mbState">กำลังเตรียม…</b></p>
-      <p class="hint">หลัง login ขั้น 2-4 <b>ทั้งหมด</b> จะสลับไปใช้ pk Mode B + แนบ token อัตโนมัติ
-        (key ที่เปิด Mode B เป็นแบบ enforce-or-reject — token หาย/หมดอายุ = 401 เสมอ ไม่หล่นกลับ Mode A เงียบๆ)</p>
-    </details>
-
     <section>
       <b>Event log</b> <span class="hint">— SDK ทำอะไรอยู่ ดูได้ที่นี่ (ใหม่สุดอยู่บน)</span>
       <div id="log"><ul id="logList"></ul></div>
@@ -189,17 +201,51 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     const $ = (id) => document.getElementById(id);
     // ทุก error ผ่าน describeError → ภาษาคน (โค้ดดิบวงเล็บท้ายไว้แจ้งทีม support)
     const fmtErr = (e) => e instanceof PackikoError ? `${describeError(e.code, 'th')} (${e.code})` : String(e);
-    // Read config at call time so the typed pk_/apiBaseUrl are used. When the
-    // step-5 Keycloak login is active (window.PackikoModeB, set by the module
-    // script below), every call switches to the Mode B key + user token —
-    // login is a full redirect, so the switch always lands on a fresh page.
-    const cfg = () => window.PackikoModeB?.active
+
+    // ── step 1: the auth-mode choice — everything below hangs off it ───────
+    // No default on purpose: the question IS the point of this page. The choice
+    // survives the Keycloak login redirect (and refreshes) via sessionStorage.
+    const authMode = () => sessionStorage.getItem('plainAuthMode'); // 'a' | 'b' | null
+    const setSt = (id, text, cls) => { const el = $(id); el.textContent = text; el.className = 'st' + (cls ? ' ' + cls : ''); };
+    function syncStep1() {
+      const m = authMode();
+      if (m === null) setSt('st1', 'ยังไม่เลือกโหมด', '');
+      else if (m === 'a') {
+        const ready = $('pkInput').value.trim() !== '';
+        setSt('st1', ready ? 'Mode A · พร้อมใช้' : 'Mode A · ยังไม่กรอก key', ready ? 'ok' : '');
+      } else {
+        const active = Boolean(window.PackikoModeB?.active);
+        setSt('st1', active ? 'Mode B active' : 'Mode B · ยังไม่ login', active ? 'ok' : 'on');
+      }
+    }
+    function renderMode() {
+      const m = authMode();
+      $('modeAPanel').hidden = m !== 'a';
+      $('modeBPanel').hidden = m !== 'b';
+      $('apiRow').hidden = m === null;
+      $('modeABtn').disabled = m === 'a';
+      $('modeBBtn').disabled = m === 'b';
+      syncStep1();
+    }
+    $('modeABtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'a'); renderMode(); });
+    $('modeBBtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'b'); renderMode(); });
+    $('pkInput').addEventListener('input', syncStep1);
+    renderMode();
+
+    // Read config at call time. Mode B logged-in (window.PackikoModeB, set by
+    // the module script below) → Mode B key + user token; login is a full
+    // redirect, so the switch always lands on a fresh page.
+    const cfg = () => authMode() === 'b' && window.PackikoModeB?.active
       ? { apiBaseUrl: $('apiInput').value.trim(), publicKey: window.PackikoModeB.publicKey, getUserToken: window.PackikoModeB.getUserToken }
       : { apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() };
-    const hasPk = () => cfg().publicKey !== '';
-    const setSt = (id, text, cls) => { const el = $(id); el.textContent = text; el.className = 'st' + (cls ? ' ' + cls : ''); };
-    const syncStep1 = () => setSt('st1', hasPk() ? 'พร้อมใช้' : 'ยังไม่กรอก key', hasPk() ? 'ok' : '');
-    $('pkInput').addEventListener('input', syncStep1);
+    // Null = config usable · string = what to fix in step 1 (mode-aware).
+    const configProblem = () => {
+      const m = authMode();
+      if (m === null) return 'เลือกโหมด auth ในขั้น 1 ก่อน';
+      if (m === 'b' && !window.PackikoModeB?.active) return 'Login (Mode B) ในขั้น 1 ก่อน';
+      if (m === 'a' && $('pkInput').value.trim() === '') return 'กรอก pk_ ในขั้น 1 ก่อน';
+      return null;
+    };
 
     // ── event log ──────────────────────────────────────────────────────────
     // DOM APIs only — never innerHTML with interpolated values, even in a demo.
@@ -274,9 +320,10 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       heldBlob = null; $('uploadRow').hidden = true; $('videoIdRow').hidden = true; $('recErr').textContent = '';
       void openCamera();
     });
-    // อัปโหลด: ปุ่มของตัวเอง — เช็ค key ตรงนี้ที่เดียว พังแล้วกดซ้ำได้ ไฟล์ไม่หาย
+    // อัปโหลด: ปุ่มของตัวเอง — เช็ค config ตรงนี้ที่เดียว พังแล้วกดซ้ำได้ ไฟล์ไม่หาย
     $('uploadBtn').addEventListener('click', async () => {
-      if (!hasPk()) { $('recErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5) — คลิปยังอยู่ ไม่ต้องอัดใหม่'; return; }
+      const prob = configProblem();
+      if (prob) { $('recErr').textContent = `${prob} — คลิปยังอยู่ ไม่ต้องอัดใหม่`; return; }
       $('recErr').textContent = ''; $('uploadBtn').disabled = true;
       try {
         // Mode B: ตัวตนมาจาก token ที่ server verify — ไม่ส่ง externalUserRef ซ้อน
@@ -305,7 +352,8 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     async function resolvePlayback() {
       const id = $('pbInput').value.trim();
       if (!id) { $('pbErr').textContent = 'ใส่ videoId ก่อน'; return; }
-      if (!hasPk()) { $('pbErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5)'; return; }
+      const prob = configProblem();
+      if (prob) { $('pbErr').textContent = prob; return; }
       $('pbErr').textContent = ''; $('pbRetryBtn').hidden = true; $('pbVideo').removeAttribute('src');
       $('pbPhase').textContent = 'กำลังขอลิงก์…';
       try {
@@ -409,7 +457,8 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       const file = e.target.files?.[0];
       if (!file) return;
       e.target.value = '';
-      if (!hasPk()) { $('qErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5) — คิวต้องใช้ key ตอนอัปโหลด'; return; }
+      const prob = configProblem();
+      if (prob) { $('qErr').textContent = `${prob} — คิวต้องใช้ key ตอนอัปโหลด`; return; }
       $('qErr').textContent = '';
       const orderRef = `plain-${Date.now()}`;
       await getQueue().enqueue({ blob: file, context: { orderRef }, orderRef });
@@ -417,12 +466,11 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     });
   </script>
 
-  <!-- ── step 5: Mode B (optional) — keycloak-js is ESM-only, so a module script.
+  <!-- ── step 1, Mode B path — keycloak-js is ESM-only, so a module script.
        Runs after the classic script above; talks to it via window.PackikoModeB. -->
   <script type="module">
     import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
     const $ = (id) => document.getElementById(id);
-    const setSt5 = (text, cls) => { const el = $('st5'); el.textContent = text; el.className = 'st' + (cls ? ' ' + cls : ''); };
     // ThaiCloud UAT demo defaults — same values as the React app (src/auth.ts).
     const DEFAULTS = {
       pk: 'pk_uat_example_41340973f06bfdfbd095a3e832aa93d4234eccefa845e94d',
@@ -447,7 +495,6 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       await kc.init({ pkceMethod: 'S256' }); // resumes the session on redirect return
     } catch (e) {
       $('mbState').textContent = 'ติดต่อ Keycloak ไม่ได้ — เช็ค URL/realm/client id';
-      setSt5('ติดต่อ IdP ไม่ได้', 'err');
       logEvent('modeB', `init error: ${e}`);
     }
 
@@ -458,16 +505,15 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
         // SDK awaits this per request — refresh keeps X-User-Token fresh.
         getUserToken: async () => { try { await kc.updateToken(30) } catch {} return kc.token ?? '' },
       };
+      // Landing back from the redirect — make sure step 1 shows the Mode B panel
+      // and the chip reads "Mode B active" (renderMode → syncStep1).
+      sessionStorage.setItem('plainAuthMode', 'b');
+      renderMode();
       $('mbState').textContent = `Mode B active — sub: ${kc.tokenParsed?.sub ?? '?'}`;
       $('kcLogoutBtn').hidden = false;
-      setSt5('Mode B active', 'ok');
-      // Step-1 chip reflects the active key source (the classic script's syncStep1
-      // reads cfg(), which now resolves to the Mode B key).
-      window.dispatchEvent(new Event('packiko-modeb-changed'));
       logEvent('modeB', `login สำเร็จ (sub: ${kc.tokenParsed?.sub ?? '?'})`, 'ขั้น 2-4 ใช้ pk Mode B + X-User-Token แล้ว — เปิด DevTools → Network ดู header ได้');
     } else if (!$('mbState').textContent.startsWith('ติดต่อ')) {
-      $('mbState').textContent = 'ยังไม่ login (ขั้น 1-4 ใช้ Mode A ตามเดิม)';
-      setSt5('ยังไม่ login', '');
+      $('mbState').textContent = 'ยังไม่ login — กด Login ข้างบนเพื่อลองของจริง';
       // The user edited the IdP fields and we reloaded to rebuild kc — continue.
       if (sessionStorage.getItem('plainModeBAutoLogin')) {
         sessionStorage.removeItem('plainModeBAutoLogin');
@@ -492,14 +538,6 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     $('kcLogoutBtn').addEventListener('click', () => {
       sessionStorage.removeItem('plainModeB');
       void kc.logout({ redirectUri: window.location.href });
-    });
-  </script>
-  <script>
-    // Keep the step-1 chip honest when Mode B activates (module script dispatches).
-    window.addEventListener('packiko-modeb-changed', () => {
-      const el = document.getElementById('st1');
-      el.textContent = 'ใช้ key จาก Mode B (ขั้น 5)';
-      el.className = 'st ok';
     });
   </script>
 </body>

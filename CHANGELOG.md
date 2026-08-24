@@ -30,6 +30,20 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
   raw code in parentheses.
 - **Step status chips** on every summary + a visual pass (readable cards, labeled inputs,
   focus states) — still one self-contained vanilla file, no build step.
+- **Reconciled with the choice-first step 1** (merged from main, next entry): the pk +
+  `externalUserRef` fields live in the Mode A panel, the login lives in the Mode B panel,
+  guards are mode-aware, and the step-1 chip reports the chosen mode's readiness.
+
+## 2026-08-24 — plain.html: auth mode is the FIRST choice (SDK 0.3.0)
+
+### Changed
+
+- Reworked after UX feedback: the auth-mode decision moved from a bolted-on step 5 to
+  **step 1, before anything else** — it decides which key and whether to login, so it cannot
+  come last. No default: the page asks the OIDC-or-not question and reveals only the chosen
+  mode's config panel (Mode A: pk input · Mode B: IdP fields + live login). Steps 2-4 guard
+  with mode-aware messages ("เลือกโหมดในขั้น 1" / "Login ก่อน") and the choice survives the
+  login redirect via sessionStorage.
 
 ## 2026-08-24 — Mode B in the vanilla path (SDK 0.3.0)
 
