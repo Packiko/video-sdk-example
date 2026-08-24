@@ -6,14 +6,14 @@ import Keycloak from 'keycloak-js'
 // any browser's network tab). The pk is committed knowingly: a Mode B key is
 // useless without a live JWT from this realm (enforce-or-reject), so the only
 // exposure is realm users spending UAT demo credit.
-// ponytail: '' until the tenant_client is provisioned — fill it in then.
-const DEFAULT_MODE_B_PUBLIC_KEY = ''
+const DEFAULT_MODE_B_PUBLIC_KEY = 'pk_uat_example_41340973f06bfdfbd095a3e832aa93d4234eccefa845e94d'
 const env = import.meta.env
 export const modeB = {
   publicKey: (env.VITE_PACKIKO_MODE_B_PUBLIC_KEY as string | undefined) ?? DEFAULT_MODE_B_PUBLIC_KEY,
   url: (env.VITE_PACKIKO_KEYCLOAK_URL as string | undefined) ?? 'https://login.thaicloud.com',
   realm: (env.VITE_PACKIKO_KEYCLOAK_REALM as string | undefined) ?? 'common',
-  clientId: (env.VITE_PACKIKO_KEYCLOAK_CLIENT_ID as string | undefined) ?? 'packiko-video-example',
+  // ThaiCloud's Keycloak client-id convention is a UUID, not a slug.
+  clientId: (env.VITE_PACKIKO_KEYCLOAK_CLIENT_ID as string | undefined) ?? '019be89c-cc99-7f1d-b5c6-ca4ddddddddd',
 }
 // The pk is the only value without a usable default until provisioning — it
 // alone gates the login UI.
