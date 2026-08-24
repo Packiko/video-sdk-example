@@ -44,6 +44,9 @@ export default function Record() {
 
   return (
     <section>
+      <p style={{ border: '1px solid #d5a300', padding: 10, borderRadius: 6 }}>
+        Minimal direct-upload demo: เหมาะกับการลอง API แต่ไม่เก็บ Blob ลง durable queue ก่อนยิง network
+      </p>
       <input value={merchantId} onChange={(e) => setMerchantId(e.target.value)}
         placeholder="merchant_id (optional — partner/ZORT)"
         style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }} />

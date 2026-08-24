@@ -1,6 +1,7 @@
 import { createUploadQueue, registerBackgroundSync, type AttachResult, type UploadQueueStage } from '@packiko/video-sdk'
 import { sdkConfig } from './sdk'
 import { logEvent } from './eventLog'
+import { authReady, isAuthenticated, subject } from './auth'
 
 // ponytail: this module owns app-wide singletons (the queue + its listeners +
 // the SW message listener). A hot swap would create a second queue and stack
@@ -21,6 +22,23 @@ export type Ctx = { orderRef: string }
 const documents = new Set<string>()
 const bindings = new Map<string, string>() // orderRef → videoId (makes attach idempotent)
 
+const MODE_A_OWNER_KEY = 'packiko-video-example.owner'
+
+async function currentOwnerId(): Promise<string | null> {
+  await authReady
+  if (isAuthenticated()) return `oidc:${subject()}`
+  try {
+    let id = localStorage.getItem(MODE_A_OWNER_KEY)
+    if (!id) {
+      id = crypto.randomUUID()
+      localStorage.setItem(MODE_A_OWNER_KEY, id)
+    }
+    return `browser:${id}`
+  } catch {
+    return null
+  }
+}
+
 export function hasDocument(orderRef: string): boolean {
   return documents.has(orderRef)
 }
@@ -38,6 +56,7 @@ export function listBindings(): ReadonlyMap<string, string> {
 
 // One queue instance per app — jobs keep settling after screens unmount.
 export const queue = createUploadQueue<Ctx>(sdkConfig, {
+  getOwnerId: currentOwnerId,
   releaseWhen: (job) => documents.has(job.context.orderRef),
   attach: (job): AttachResult => {
     if (!documents.has(job.context.orderRef)) return { status: 'parked' } // gate re-arms

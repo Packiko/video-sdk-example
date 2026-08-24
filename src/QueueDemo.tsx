@@ -1,77 +1,51 @@
 import { useEffect, useState } from 'react'
 import { useUploadQueue } from '@packiko/video-sdk/react'
 import { describeError, type UploadQueueOutcome } from '@packiko/video-sdk'
-import { queue, createDocument, hasDocument, requestBackgroundSync, type Ctx } from './queue'
+import { queue, createDocument, hasDocument, type Ctx } from './queue'
 
-let nextOrder = 1
-
-// Durable queue + deferred attach demo. Walkthrough:
-// 1. Pick a clip → it enqueues under a fresh order WITHOUT a document → parks.
-// 2. "Create document" → nudge() → the parked job binds in that same cycle.
-// 3. Refresh mid-upload to see checkpoint resume; go offline to see retries.
+// App-wide recovery tray. Recording enters this queue from ProductionRecorder;
+// this component only observes and operates jobs, so it may mount/unmount freely.
 export default function QueueDemo() {
   const { hydrated, jobs, storageError, retry, nudge, download } = useUploadQueue(queue)
   const [outcomes, setOutcomes] = useState<UploadQueueOutcome<Ctx>[]>([])
-  // onOutcome returns its unsubscriber — exactly what useEffect wants back.
   useEffect(() => queue.onOutcome((o) => setOutcomes((prev) => [...prev, o])), [])
-
-  const enqueueFile = async (file: File) => {
-    const orderRef = `EX-${Date.now()}-${nextOrder++}`
-    await queue.enqueue({ blob: file, context: { orderRef }, orderRef })
-    requestBackgroundSync() // one-shot: re-register after each enqueue
-  }
 
   if (!hydrated) return <p>Loading queue…</p>
   return (
     <section>
-      <p>
-        <label>
-          Add a clip to the queue:{' '}
-          <input
-            type="file"
-            accept="video/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void enqueueFile(file)
-              e.target.value = ''
-            }}
-          />
-        </label>
-      </p>
-      <p style={{ color: '#888', fontSize: 14 }}>
-        Any local video file works — real integrations pass the recorder's blob straight to <code>enqueue()</code>, no file picking.
-      </p>
       {storageError && <p style={{ color: 'crimson' }}>Local storage failing: {storageError}</p>}
 
-      <h3>Jobs</h3>
-      {jobs.length === 0 && <p>(queue empty)</p>}
+      <h3>Recovery queue</h3>
+      {jobs.length === 0 && <p>ไม่มีคลิปค้างในเครื่อง</p>}
       <ul>
         {jobs.map((job) => (
           <li key={job.id} style={{ marginBottom: 8 }}>
             <code>{job.context.orderRef}</code> — <strong>{job.stage}</strong>
             {job.progress !== null && ` ${Math.round(job.progress * 100)}%`}
             {job.lastError && ` · ${job.lastError.step}: ${job.lastError.code}`}
+            {job.nextRetryAt && ` · ลองอีกครั้ง ${new Date(job.nextRetryAt).toLocaleTimeString()}`}
             {!hasDocument(job.context.orderRef) && (
               <button style={{ marginLeft: 8 }} onClick={() => createDocument(job.context.orderRef)}>
-                Create document (nudge)
+                สร้างเอกสาร Partner และ nudge
               </button>
             )}
             {(job.stage === 'review' || job.stage === 'retry') && (
               <button style={{ marginLeft: 8 }} onClick={() => void retry(job.id)}>
-                Retry now
+                ลองใหม่ตอนนี้
               </button>
             )}
             <button style={{ marginLeft: 8 }} onClick={() => download(job.id)}>
-              Download clip
+              ดาวน์โหลดคลิป
             </button>
           </li>
         ))}
       </ul>
       <p>
-        <button onClick={() => void nudge()}>Re-check all parked jobs</button>
+        <button onClick={() => void nudge()} disabled={jobs.length === 0}>ตรวจงานที่จอดรอทั้งหมด</button>
       </p>
 
-      <h3>Outcomes</h3>
+      <h3>ผลลัพธ์ใน session นี้</h3>
+      {outcomes.length === 0 && <p>ยังไม่มีผลลัพธ์ใหม่</p>}
       <ul>
         {outcomes.map((o, i) => (
           <li key={i}>

@@ -90,7 +90,7 @@
 
       <section id="modeAPanel" hidden>
         <p class="hint"><b>Mode A</b> — ใช้แค่ publishable key (pk_...) ปลอดภัยในเบราว์เซอร์ ไม่มี secret ·
-          "วิดีโอเป็นของ user ไหน" คุณรับรองเองผ่าน <code>externalUserRef</code> (server ไม่ verify) ·
+          direct upload รับ "วิดีโอเป็นของ user ไหน" ผ่าน <code>externalUserRef</code> (server ไม่ verify) ·
           ระบบ token แบบ HS256 (symmetric) server verify ข้ามองค์กรไม่ได้ จึงอยู่กลุ่มนี้</p>
         <pre class="code">&lt;script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"&gt;&lt;/script&gt;
 const { createRecorder, createPlaybackResolver, createUploadQueue } = PackikoVideo;
@@ -99,7 +99,7 @@ const config = { apiBaseUrl, publicKey };</pre>
         <div class="field">
           <label for="userRefInput">รหัสผู้ใช้ในระบบของคุณ (ไม่บังคับ)</label>
           <input id="userRefInput" placeholder='เช่น "emp-1042" — ระบบคุณยืนยันตัวตนเอง แล้วส่ง ref มาผูกกับคลิป' />
-          <span class="hint">ส่งเป็น <code>externalUserRef</code> ตอนอัปโหลด — คลิปบันทึกว่าใครเป็นคนอัด</span>
+          <span class="hint">ตัวอย่างคิวใช้ค่านี้เป็น owner guard ในเครื่อง; SDK 0.3 ยังไม่ส่งเป็น <code>externalUserRef</code> ไป Video API (ดู Packiko/video#155)</span>
         </div>
       </section>
 
@@ -133,13 +133,14 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     </details>
 
     <details id="step2">
-      <summary>ขั้น 2 · อัดวิดีโอ + อัปโหลด <span class="st" id="st2">ยังไม่เปิดกล้อง</span></summary>
-      <p class="hint">กล้องเปิดตอนกางกล่องนี้ (หุบกล่อง = ปิดกล้อง) · กด "หยุดอัด" ได้เสมอ — ไฟล์จะรอในหน้า แล้วค่อยกดอัปโหลดเมื่อพร้อม</p>
+      <summary>ขั้น 2 · อัดวิดีโอ + เก็บเข้าคิวถาวร <span class="st" id="st2">ยังไม่เปิดกล้อง</span></summary>
+      <p class="hint">กดหยุดแล้วรอให้ <code>enqueue()</code> เก็บ Blob ลงเครื่องสำเร็จก่อน จึงถือว่าปลอดภัยจาก network/server failure</p>
       <pre class="code">const cap = await createRecorder(config).capture();   // ขอกล้อง + preview
 cap.start();                                           // เริ่มอัด
 const blob = await cap.stop();                         // ได้ไฟล์ (หยุดได้เสมอ ไม่ต้องมี key)
-const up = createRecorder(config).upload(blob, { orderRef, externalUserRef });
-const { videoId } = await up.promise;                  // สำเร็จ = ได้ videoId</pre>
+await queue.enqueue({ blob, context: { orderRef }, orderRef });
+cap.dispose();                                         // durable แล้ว network ทำต่อเอง</pre>
+      <div class="field"><label for="recordOrderRef">Order reference ของระบบ Partner</label><input id="recordOrderRef" value="plain-demo-001" /></div>
       <video id="preview" autoplay muted playsinline></video>
       <div class="row">
         <button id="startBtn" disabled>⏺ เริ่มอัด</button>
@@ -148,12 +149,12 @@ const { videoId } = await up.promise;                  // สำเร็จ = �
         <span class="hint">capture: <b id="recState">ยังไม่เปิดกล้อง</b></span>
       </div>
       <div class="row" id="uploadRow" hidden>
-        <span class="okline">🎬 คลิปพร้อมแล้ว (<span id="clipSize"></span>)</span>
-        <button id="uploadBtn" class="go">⬆ อัปโหลดคลิปนี้</button>
+        <span class="okline">คลิปอยู่ใน durable queue แล้ว (<span id="clipSize"></span>)</span>
         <button id="reRecordBtn">อัดใหม่</button>
+        <button id="heldDownloadBtn" hidden>ดาวน์โหลดคลิปฉุกเฉิน</button>
         <b id="upSpan"></b>
       </div>
-      <p id="videoIdRow" hidden>🎉 videoId: <code id="videoId"></code> <button id="copyBtn">copy</button> <span class="hint">— ใส่ให้ในขั้น 3 แล้ว</span></p>
+      <p id="videoIdRow" hidden>videoId: <code id="videoId"></code> <button id="copyBtn">copy</button> <span class="hint">— ได้หลัง Partner callback ผูกสำเร็จ</span></p>
       <p id="recErr" class="err"></p>
     </details>
 
@@ -173,7 +174,7 @@ const res = await resolver.resolve(videoId);
     </details>
 
     <details id="step4">
-      <summary>ขั้น 4 · คิวถาวร + ผูกเอกสารทีหลัง <span class="st" id="st4">—</span></summary>
+      <summary>ขั้น 4 · Recovery queue + ผูกเอกสารทีหลัง <span class="st" id="st4">—</span></summary>
       <p class="hint">โจทย์จริงหน้างาน: พนักงานอัดคลิปแพ็คของเสร็จ แต่<b>ออเดอร์ในระบบยังบันทึกไม่เสร็จ</b>
         — คลิปยังไม่มีที่ให้ผูก แถมเน็ตหน้าคลังก็ไม่นิ่ง ถ้าอัปโหลดตรงๆ แบบขั้น 2 คลิปหายกลางทางได้</p>
       <p class="hint">คิวถาวรรับปาก 3 อย่าง:</p>
@@ -190,20 +191,15 @@ await queue.enqueue({ blob, context, orderRef });      // durable ทันท�
 await queue.nudge();                                   // เอกสารพร้อมแล้ว เช็คเดี๋ยวนี้</pre>
       <p class="hint">ลองตามนี้ (demo จำลอง "เอกสาร" ไว้ในหน้าเว็บ — ของจริงคือระบบหลังบ้านของคุณ):</p>
       <ol class="pre hint">
-        <li>กด "ใช้คลิปจากขั้น 2" หรือเลือก<b>ไฟล์วิดีโออะไรก็ได้ในเครื่อง</b>
-          (ของจริงโค้ดคุณส่ง blob จากตัวอัดเข้าคิวตรงๆ ไม่มีการเลือกไฟล์)
-          → ดูสถานะวิ่ง <code>queued → uploading → uploaded</code> แล้ว<b>จอดรอ</b> เพราะยังไม่มีเอกสาร</li>
+        <li>อัดและหยุดในขั้น 2 → ดูสถานะวิ่ง <code>queued → uploading → uploaded</code> แล้ว<b>จอดรอ</b> เพราะยังไม่มีเอกสาร</li>
         <li>ใจกล้าๆ <b>refresh หน้าตรงนี้เลย</b> — job กลับมารอที่เดิม คลิปไม่หาย</li>
         <li>กด <b>"สร้างเอกสาร (nudge)"</b> = แกล้งเป็นระบบคุณบันทึกออเดอร์เสร็จ
-          → คิวผูกคลิปทันที แล้วลบไฟล์ในเครื่อง 🎉</li>
+          → คิวผูกคลิปทันที แล้วลบไฟล์ในเครื่อง</li>
       </ol>
-      <div class="row">
-        <button id="useClipBtn" disabled>📼 ใช้คลิปจากขั้น 2</button>
-        <input type="file" id="fileInput" accept="video/*" style="width:auto" />
-        <span class="hint">← เริ่มข้อ 1 ที่นี่</span>
-      </div>
       <p id="qErr" class="err"></p>
       <ul id="jobs"></ul>
+      <p class="hint">SDK 0.3.0 รับประกันหลัง enqueue สำเร็จ; browser/process crash หรือไฟดับกลาง REC ยังไม่รับประกัน</p>
+      <p class="hint">Queue 0.3.0 ยังไม่ส่ง optional <code>externalUserRef</code>, <code>merchantId</code> หรือ <code>items</code> แบบ direct upload</p>
     </details>
 
     <section>
@@ -282,90 +278,116 @@ await queue.nudge();                                   // เอกสารพ�
       $('logList').prepend(li);
     }
 
-    // ── step 2: record → hold the blob → upload as its own action ──────────
-    // กติกา UX ของขั้นนี้ (จากบั๊กที่ผู้ใช้จริงเจอ):
-    //   1. "หยุดอัด" ต้องทำงานได้เสมอ — ห้ามมีเงื่อนไขใดขวางการหยุดอัด/ปิดกล้อง
-    //   2. อัปโหลดเป็นปุ่มของตัวเอง — พังแล้วกดซ้ำได้โดยไม่ต้องอัดใหม่ (ไฟล์ค้างอยู่ในหน้า)
-    //   3. หุบกล่อง = ปิดกล้อง · มีปุ่มปิดกล้องชัดๆ — ไฟกล้องค้างคือสิ่งที่ผู้ใช้ไม่ให้อภัย
+    // ── step 2: record → finalize → durable queue ─────────────────────────
     let cap = null;
     let heldBlob = null;
+    let frozenOrderRef = '';
+    let finalizePromise = null;
+    let captureAbort = null;
     async function openCamera() {
+      captureAbort?.abort();
+      const controller = new AbortController();
+      captureAbort = controller;
       try {
-        cap = await createRecorder(cfg()).capture();
+        const capture = await createRecorder(cfg()).capture({ signal: controller.signal });
+        if (controller.signal.aborted || captureAbort !== controller) { capture.dispose(); return; }
+        cap = capture;
         $('preview').srcObject = cap.previewStream;
         cap.on('state', (s) => { $('recState').textContent = s; logEvent('recorder', `capture state → ${s}`); });
         $('startBtn').disabled = false;
         $('camOffBtn').disabled = false;
         $('recErr').textContent = '';
         setSt('st2', 'กล้องเปิดแล้ว', 'on');
-        logEvent('recorder', 'เปิดกล้องแล้ว (getUserMedia)', 'แค่ขอกล้อง ยังไม่ต้องใช้ pk_ — ต้องใช้ตอนอัปโหลด');
-      } catch (e) { $('recErr').textContent = fmtErr(e); setSt('st2', 'เปิดกล้องไม่ได้', 'err'); }
+        logEvent('recorder', 'เปิดกล้องแล้ว (getUserMedia)', 'ยังไม่มี network request');
+      } catch (e) {
+        if (!controller.signal.aborted) { $('recErr').textContent = fmtErr(e); setSt('st2', 'เปิดกล้องไม่ได้', 'err'); }
+      } finally {
+        if (captureAbort === controller) captureAbort = null;
+      }
     }
     function closeCamera(label) {
+      captureAbort?.abort();
+      captureAbort = null;
       cap?.dispose();
       cap = null;
       $('preview').srcObject = null;
       $('startBtn').disabled = true; $('stopBtn').disabled = true; $('camOffBtn').disabled = true;
       $('recState').textContent = label ?? 'ปิดกล้องแล้ว';
-      if (!heldBlob) setSt('st2', 'ปิดกล้องแล้ว', '');
+      if (!heldBlob && !finalizePromise) setSt('st2', 'ปิดกล้องแล้ว', '');
     }
     $('step2').addEventListener('toggle', function () {
       if (this.open && !cap) void openCamera();
-      if (!this.open && cap) { closeCamera(); logEvent('recorder', 'หุบกล่อง → ปิดกล้องให้อัตโนมัติ'); }
+      if (!this.open) captureAbort?.abort();
+      if (!this.open && cap?.state === 'recording') void finalizeAndQueue('หุบขั้นตอนระหว่างอัด');
+      else if (!this.open && cap) { closeCamera(); logEvent('recorder', 'หุบขั้นตอน → ปิดกล้อง'); }
     });
-    $('camOffBtn').addEventListener('click', () => { closeCamera(); logEvent('recorder', 'ปิดกล้องแล้ว (ผู้ใช้กดเอง)'); });
+    $('camOffBtn').addEventListener('click', () => {
+      if (cap?.state === 'recording') void finalizeAndQueue('กดปิดกล้องระหว่างอัด');
+      else { closeCamera(); logEvent('recorder', 'ปิดกล้องแล้ว (ผู้ใช้กดเอง)'); }
+    });
     $('startBtn').addEventListener('click', () => {
+      const orderRef = $('recordOrderRef').value.trim();
+      if (!orderRef) { $('recErr').textContent = 'กรอก order reference ก่อนเริ่มอัด'; return; }
+      frozenOrderRef = orderRef;
       cap.start();
       $('startBtn').disabled = true; $('stopBtn').disabled = false;
-      $('uploadRow').hidden = true; heldBlob = null; $('useClipBtn').disabled = true;
+      $('recordOrderRef').disabled = true;
+      $('uploadRow').hidden = true; $('heldDownloadBtn').hidden = true; heldBlob = null;
       setSt('st2', 'กำลังอัด…', 'on');
+      logEvent('recorder', `เริ่มอัด ${frozenOrderRef}`, 'order reference ถูก freeze สำหรับคลิปนี้แล้ว');
     });
-    // หยุดอัด: ไม่มีเงื่อนไข ไม่แตะ network — ได้ไฟล์มาถือไว้ก่อนเสมอ
-    $('stopBtn').addEventListener('click', async () => {
-      $('stopBtn').disabled = true;
-      try {
-        heldBlob = await cap.stop();
-        $('clipSize').textContent = `${Math.round(heldBlob.size / 1024)} KB`;
-        $('uploadRow').hidden = false;
-        $('useClipBtn').disabled = false; // ขั้น 4 เอาคลิปนี้เข้าคิวได้แล้ว
-        $('upSpan').textContent = '';
-        setSt('st2', 'ได้คลิปแล้ว — รออัปโหลด', 'on');
-        logEvent('recorder', `ได้ไฟล์แล้ว (${Math.round(heldBlob.size / 1024)} KB)`, 'ไฟล์อยู่ในหน้านี้ ยังไม่ขึ้นระบบ — กดอัปโหลดเมื่อพร้อม');
-        closeCamera('อัดจบแล้ว');
-      } catch (e) { $('recErr').textContent = fmtErr(e); setSt('st2', 'หยุดอัดไม่สำเร็จ', 'err'); }
+    async function finalizeAndQueue(reason) {
+      if (finalizePromise) return finalizePromise;
+      const capture = cap;
+      const orderRef = frozenOrderRef;
+      if (!capture || !orderRef) return;
+      finalizePromise = (async () => {
+        $('stopBtn').disabled = true;
+        setSt('st2', 'กำลัง finalize…', 'on');
+        try {
+          heldBlob = await capture.stop();
+          $('clipSize').textContent = `${Math.round(heldBlob.size / 1024)} KB`;
+          $('uploadRow').hidden = false;
+          $('heldDownloadBtn').hidden = false;
+          $('upSpan').textContent = 'กำลังเก็บลงเครื่อง…';
+          closeCamera('อัดจบแล้ว');
+          await enqueueClip(heldBlob, orderRef, ` — ${reason}`);
+          heldBlob = null;
+          $('heldDownloadBtn').hidden = true;
+          $('upSpan').textContent = '';
+          setSt('st2', 'durable แล้ว', 'ok');
+          logEvent('recorder', `${orderRef} durable แล้ว`, 'ออกจากหน้า/ออฟไลน์ได้ อัปโหลดทำต่อใน queue');
+        } catch (e) {
+          $('recErr').textContent = `${fmtErr(e)} — คลิปยังอยู่ใน memory กดดาวน์โหลดฉุกเฉินได้`;
+          $('heldDownloadBtn').hidden = !heldBlob;
+          setSt('st2', 'ยังเก็บเข้าคิวไม่สำเร็จ', 'err');
+        } finally {
+          capture.dispose();
+          finalizePromise = null;
+        }
+      })();
+      return finalizePromise;
+    }
+    $('stopBtn').addEventListener('click', () => void finalizeAndQueue('ผู้ใช้กดหยุด'));
+    $('heldDownloadBtn').addEventListener('click', () => {
+      if (!heldBlob) return;
+      const url = URL.createObjectURL(heldBlob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${frozenOrderRef || 'video-evidence'}.webm`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     });
     $('reRecordBtn').addEventListener('click', () => {
-      heldBlob = null; $('uploadRow').hidden = true; $('videoIdRow').hidden = true; $('recErr').textContent = '';
-      $('useClipBtn').disabled = true;
+      heldBlob = null; frozenOrderRef = ''; $('uploadRow').hidden = true; $('videoIdRow').hidden = true; $('recErr').textContent = '';
+      $('recordOrderRef').disabled = false;
+      $('recordOrderRef').value = `plain-${Date.now()}`;
       void openCamera();
     });
-    // อัปโหลด: ปุ่มของตัวเอง — เช็ค config ตรงนี้ที่เดียว พังแล้วกดซ้ำได้ ไฟล์ไม่หาย
-    $('uploadBtn').addEventListener('click', async () => {
-      const prob = configProblem();
-      if (prob) { $('recErr').textContent = `${prob} — คลิปยังอยู่ ไม่ต้องอัดใหม่`; return; }
-      $('recErr').textContent = ''; $('uploadBtn').disabled = true;
-      try {
-        // Mode B: ตัวตนมาจาก token ที่ server verify — ไม่ส่ง externalUserRef ซ้อน
-        const externalUserRef = window.PackikoModeB?.active ? undefined : ($('userRefInput').value.trim() || undefined);
-        const up = createRecorder(cfg()).upload(heldBlob, { orderRef: 'plain-demo-001', externalUserRef });
-        up.on('progress', (p) => { $('upSpan').textContent = `upload ${Math.round(p.ratio * 100)}%`; });
-        up.on('state', (s) => logEvent('recorder', `upload state → ${s}`));
-        logEvent('recorder', 'เริ่มอัปโหลด', externalUserRef ? `ผูกกับผู้ใช้ ${externalUserRef} (externalUserRef)` : undefined);
-        const { videoId } = await up.promise;
-        $('videoId').textContent = videoId; $('videoIdRow').hidden = false;
-        $('pbInput').value = videoId; // หยอดให้ขั้น 3 เลย
-        $('upSpan').textContent = '';
-        setSt('st2', 'อัปโหลดสำเร็จ', 'ok');
-        setSt('st3', 'มี videoId แล้ว — กดเปิดดู', 'on');
-        logEvent('recorder', `🎉 ได้ videoId: ${videoId}`, 'ใส่ให้ในขั้น 3 แล้ว — กางกล่องต่อได้เลย');
-      } catch (e) {
-        $('recErr').textContent = fmtErr(e);
-        setSt('st2', 'อัปโหลดไม่สำเร็จ — กดซ้ำได้', 'err');
-        logEvent('recorder', `error: ${fmtErr(e)}`, 'ไฟล์ยังอยู่ในหน้า — แก้สาเหตุ (เช่น key/origin) แล้วกดอัปโหลดซ้ำ');
-      } finally { $('uploadBtn').disabled = false; }
-    });
     $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('videoId').textContent));
-    window.addEventListener('pagehide', () => cap?.dispose());
+    window.addEventListener('pagehide', () => {
+      captureAbort?.abort();
+      if (cap?.state === 'recording') void finalizeAndQueue('pagehide best effort');
+      else cap?.dispose();
+    });
 
     // ── step 3: playback — resolver ตอบ 3 แบบ ไม่โยน error ใส่คลิปที่แค่ยังไม่เสร็จ ──
     async function resolvePlayback() {
@@ -403,6 +425,21 @@ await queue.nudge();                                   // เอกสารพ�
     let queue;
     const docs = new Set();
     const bindings = new Map(); // orderRef → videoId
+    const queueConfig = {
+      get apiBaseUrl() { return $('apiInput').value.trim(); },
+      get publicKey() { return authMode() === 'b' && window.PackikoModeB?.active ? window.PackikoModeB.publicKey : $('pkInput').value.trim(); },
+      get getUserToken() { return authMode() === 'b' && window.PackikoModeB?.active ? window.PackikoModeB.getUserToken : undefined; },
+    };
+    function currentOwnerId() {
+      if (window.PackikoModeB?.active) return `oidc:${window.PackikoModeB.subject}`;
+      const externalRef = $('userRefInput').value.trim();
+      if (externalRef) return `mode-a:${externalRef}`;
+      try {
+        let id = localStorage.getItem('packiko-video-example.owner');
+        if (!id) { id = crypto.randomUUID(); localStorage.setItem('packiko-video-example.owner', id); }
+        return `browser:${id}`;
+      } catch { return null; }
+    }
     const stageHints = {
       queued: 'คลิปอยู่ในเครื่องแล้ว (durable) — ปิดแท็บก็ไม่หาย',
       uploading: 'กำลังส่งไฟล์ขึ้น server',
@@ -414,7 +451,8 @@ await queue.nudge();                                   // เอกสารพ�
     const lastStages = new Map();
     function getQueue() {
       if (queue) return queue;
-      queue = createUploadQueue(cfg(), {
+      queue = createUploadQueue(queueConfig, {
+        getOwnerId: currentOwnerId,
         releaseWhen: (job) => docs.has(job.context.orderRef),
         attach: (job) => {
           if (!docs.has(job.context.orderRef)) return { status: 'parked' };
@@ -438,8 +476,16 @@ await queue.nudge();                                   // เอกสารพ�
         renderJobs(jobs);
       });
       queue.onOutcome((o) => {
-        if (o.status === 'bound') { setSt('st4', 'ผูกสำเร็จ', 'ok'); logEvent('queue', `🎉 ${o.context.orderRef} ผูกสำเร็จ → ${o.videoId}`, 'ครบวงจร — คลิปในเครื่องถูกลบแล้ว'); }
-        else logEvent('queue', `${o.context.orderRef} ไม่สำเร็จ (${describeError(o.code, 'th')})`, 'job รออยู่ใน review — แก้สาเหตุแล้วกด Retry');
+        if (o.status === 'bound') {
+          setSt('st4', 'ผูกสำเร็จ', 'ok');
+          $('videoId').textContent = o.videoId; $('videoIdRow').hidden = false;
+          $('pbInput').value = o.videoId; setSt('st3', 'มี videoId แล้ว — กดเปิดดู', 'on');
+          logEvent('queue', `${o.context.orderRef} ผูกสำเร็จ → ${o.videoId}`, 'ครบวงจร — คลิปในเครื่องถูกลบแล้ว');
+        } else if (o.status === 'upload-failed') {
+          logEvent('queue', `${o.context.orderRef} upload ไม่สำเร็จ (${describeError(o.code, 'th')})`, 'job รออยู่ใน review — แก้สาเหตุแล้วกด Retry');
+        } else {
+          logEvent('queue', `${o.context.orderRef} attach ไม่สำเร็จ (${o.code})`, 'code นี้เป็น namespace ของ Partner backend');
+        }
       });
       return queue;
     }
@@ -472,25 +518,13 @@ await queue.nudge();                                   // เอกสารพ�
         ul.append(li);
       }
     }
-    async function enqueueClip(blob, sourceLabel) {
-      const prob = configProblem();
-      if (prob) { $('qErr').textContent = `${prob} — คิวต้องใช้ key ตอนอัปโหลด`; return; }
+    async function enqueueClip(blob, orderRef, sourceLabel) {
       $('qErr').textContent = '';
-      const orderRef = `plain-${Date.now()}`;
       await getQueue().enqueue({ blob, context: { orderRef }, orderRef });
       logEvent('queue', `enqueue(${orderRef})${sourceLabel}`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
     }
-    $('fileInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      e.target.value = '';
-      await enqueueClip(file, '');
-    });
-    // ปุ่มเชื่อมเรื่องขั้น 2 → ขั้น 4: คลิปที่เพิ่งอัดเข้าคิวตรงๆ เหมือน flow จริง
-    $('useClipBtn').addEventListener('click', async () => {
-      if (!heldBlob) { $('qErr').textContent = 'ยังไม่มีคลิปจากขั้น 2 — อัดก่อน หรือเลือกไฟล์แทน'; return; }
-      await enqueueClip(heldBlob, ' — คลิปจากขั้น 2');
-    });
+    if (authMode() !== 'b') getQueue();
+    window.addEventListener('packiko-video:auth-ready', () => getQueue(), { once: true });
   </script>
 
   <!-- ── step 1, Mode B path — keycloak-js is ESM-only, so a module script.
@@ -528,6 +562,7 @@ await queue.nudge();                                   // เอกสารพ�
     if (kc.authenticated) {
       window.PackikoModeB = {
         active: true,
+        subject: kc.tokenParsed?.sub ?? 'unknown',
         get publicKey() { return $('mbPkInput').value.trim() },
         // SDK awaits this per request — refresh keeps X-User-Token fresh.
         getUserToken: async () => { try { await kc.updateToken(30) } catch {} return kc.token ?? '' },
@@ -566,6 +601,7 @@ await queue.nudge();                                   // เอกสารพ�
       sessionStorage.removeItem('plainModeB');
       void kc.logout({ redirectUri: window.location.href });
     });
+    window.dispatchEvent(new Event('packiko-video:auth-ready'));
   </script>
 </body>
 </html>

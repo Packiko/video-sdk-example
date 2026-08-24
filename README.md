@@ -1,21 +1,50 @@
 # Packiko Video SDK Example
 
-Demo integrating the Packiko video proof SDK end-to-end: **record → upload → process → playback**.
+Demo integrating the Packiko video proof SDK end-to-end: **record → durable local queue → upload → partner attach → playback**.
 Two integration paths from one repo:
 
-- **Path A — React (npm):** `@packiko/video-sdk` via GitHub Packages, bundled with Vite. See `src/Record.tsx`, `src/Playback.tsx`.
+- **Path A — React (npm):** `@packiko/video-sdk` via GitHub Packages, bundled with Vite. The production path is `src/ProductionRecorder.tsx` + `src/queue.ts`.
 - **Path B — vanilla (`<script>` CDN):** zero-build, `window.PackikoVideo` from R2. See `plain.html`.
 
 Both paths are **interactive walkthroughs** (built from real partner feedback — the raw
 examples were hard to follow):
 
-- The React app opens in **📖 Learn** — a 6-step guided wizard (setup → record+upload →
-  playback → durable enqueue → deferred attach → resilience), each step showing the exact
+- The React app opens in **Learn** — a 6-step guided wizard (setup → record+durable enqueue →
+  recovery queue → deferred attach → playback → failure lab), each step showing the exact
   code, a plain-Thai explanation, and a live widget running it for real. **🎮 Playground**
   is free-play: the demos beside a live **event log** narrating every SDK call and state
   change with hints.
 - `plain.html` is the same walkthrough in vanilla JS: numbered accordion steps with code +
   live widgets + the event log at the bottom.
+
+## Production recommended path
+
+Create one queue for the whole application. Stop the recorder, wait for the finalized Blob,
+and wait for `enqueue()` to persist it locally **before** telling the operator that it is safe
+to leave the screen. Upload and partner-side attachment continue in the background.
+
+```ts
+import { createRecorder, createUploadQueue } from '@packiko/video-sdk'
+
+const queue = createUploadQueue(config, {
+  getOwnerId: () => auth.currentUserId(),
+  releaseWhen: (job) => partnerApi.documentExists(job.context.orderRef),
+  attach: (job) => partnerApi.attachVideo(job.context.orderRef, job.videoId),
+})
+
+const recorder = createRecorder(config)
+const capture = await recorder.capture()
+const context = { orderRef: partnerOrder.ref } // freeze before recording
+capture.start()
+
+const blob = await capture.stop()
+await queue.enqueue({ blob, context, orderRef: context.orderRef })
+capture.dispose() // durable now; network may finish later
+```
+
+The Video SDK/API never calls Packiko Core or Ultra. `context`, `releaseWhen`, and `attach`
+belong to the Partner; the SDK stores the opaque context and returns `videoId` to the Partner's
+callback.
 
 ## Prerequisites
 
@@ -30,8 +59,10 @@ A `pk_...` key from your ThaiCloud tenant — publishable (safe in a browser bun
 One question decides the mode: **does your login system use an OIDC IdP that publishes JWKS**
 (Keycloak, Auth0, Entra ID, …)?
 
-- **No / in-house auth** → **Mode A**: the `pk_` alone; you attest user identity yourself via
-  `external_user_ref`. This is what the demo runs by default. (Symmetric tokens — e.g. HS256 —
+- **No / in-house auth** → **Mode A**: the `pk_` alone; direct upload can carry your attested
+  `externalUserRef`. The durable queue demo uses the same identity as a local owner guard, but
+  SDK 0.3 does not yet forward it to the Video API (tracked in `Packiko/video#155`). This is what
+  the demo runs by default. (Symmetric tokens — e.g. HS256 —
   cannot be verified by the video service, so in-house token systems land here too.)
 - **Yes** → **Mode B**: add one config line — `getUserToken: () => yourAuth.getAccessToken()` —
   and the SDK sends the JWT as `X-User-Token` on every request. The video service verifies
@@ -87,19 +118,14 @@ steps 2-4.
    pnpm dev      # http://localhost:5173 — port must match the registered origin
    ```
 
-### Usage (from `src/Record.tsx` / `src/Playback.tsx`)
+### Usage (from `src/ProductionRecorder.tsx` / `src/queue.ts`)
 ```ts
-// Record — the hook lives in the /react subpath, NOT the core entry:
-import { useRecorder } from '@packiko/video-sdk/react'
-
-const { previewStream, state, progress, videoId, error, start, stop } =
-  useRecorder({ apiBaseUrl, publicKey, orderRef,     // orderRef is required
-    upload: { merchantId,                            // merchantId optional (partner/ZORT) — omit for non-ZORT
-      items: [                                       // items optional (0.2.0) — snake_case wire shape, product data only
-        { sku: 'SKU-1', name: 'เสื้อยืด', qty: 2 },                 // required: sku, name, qty
-        { sku: 'SKU-2', name: 'แก้ว', qty: 1, weight_g: 350 },      // optional: image_url, weight_g (grams)
-      ] } })
-// bind previewStream -> <video>.srcObject; start()/stop(); videoId set when state === 'uploaded'
+const capture = await createRecorder(config).capture()
+video.srcObject = capture.previewStream
+capture.start()
+const blob = await capture.stop()
+await queue.enqueue({ blob, context: { orderRef }, orderRef })
+capture.dispose()
 
 // Playback — core entry:
 import { createPlayer } from '@packiko/video-sdk'
@@ -107,6 +133,10 @@ import { createPlayer } from '@packiko/video-sdk'
 const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
 // resolvePlaybackUrl polls until ready, returns { url, expiresAt } — destructure .url
 ```
+
+`useRecorder` in `src/Record.tsx` remains as a **minimal direct-upload demo**. It is useful
+for learning the recorder API, but it does not persist the Blob in the durable queue before
+network upload and is not the recommended production path.
 
 ---
 
@@ -124,7 +154,7 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 ### Usage (from `plain.html`)
 ```js
-const { createRecorder, createPlayer, PackikoError } = PackikoVideo
+const { createRecorder, createUploadQueue, createPlayer, PackikoError } = PackikoVideo
 
 // Record:
 const rec = createRecorder({ apiBaseUrl, publicKey })
@@ -132,9 +162,7 @@ const cap = await rec.capture()              // acquires camera+mic
 video.srcObject = cap.previewStream
 cap.start()
 const blob = await cap.stop()                // finalized Blob
-const up = rec.upload(blob, { orderRef, merchantId })  // merchantId optional (partner/ZORT)
-up.on('progress', (p) => { /* p.ratio 0..1 */ })
-const { videoId } = await up.promise         // resolves on 'uploaded'
+await queue.enqueue({ blob, context: { orderRef }, orderRef })
 cap.dispose()                                // release camera/mic
 
 // Playback:
@@ -145,24 +173,66 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl
 
 ---
 
-## Durable queue + Background Sync (Learn steps 4-6 · Playground → Queue)
+## Durable queue + Background Sync
 
 `@packiko/video-sdk@0.3.0` adds `createUploadQueue` — clips survive refresh,
 crash, and offline periods, and bind to your document later (deferred attach).
-The **Queue** tab demos the full loop with a simulated partner backend
-(`src/queue.ts`, `src/QueueDemo.tsx`):
+The **Production record** and **Recovery queue** tabs demo the full loop with a simulated
+Partner backend (`src/ProductionRecorder.tsx`, `src/queue.ts`, `src/QueueDemo.tsx`):
 
-1. Pick a clip — it enqueues under a fresh order **without** a document → the
-   job parks (waiting on `releaseWhen`).
-2. Click **Create document (nudge)** — `queue.nudge()` re-checks the gate and
+1. Record from the camera and stop — the finalized Blob is persisted before any network result.
+2. The job uploads without a Partner document and parks at `releaseWhen`.
+3. Click **Create document (nudge)** — `queue.nudge()` re-checks the gate and
    the clip binds in that same cycle.
-3. Try: refresh mid-upload (resumes without re-uploading), go offline (retries
+4. Try: refresh after durable enqueue (resumes without re-uploading), go offline (retries
    when back), kill the tab and reopen (jobs recover on load).
 
 [`public/sw.js`](public/sw.js) is the SDK README's Background Sync recipe
 verbatim — Chromium wakes it when connectivity returns and it messages open
 pages to `queue.drain()`. Safari/Firefox skip this silently; foreground
 triggers still do everything.
+
+Background Sync does not upload a Blob by itself when every page is closed; this recipe asks
+open clients to drain. A closed app resumes when it opens again.
+
+## Compatibility in SDK 0.3.0
+
+| Capability | Direct `useRecorder` / `upload()` | Durable queue |
+|---|---:|---:|
+| `orderRef` | Yes | Yes |
+| Mode B rotating user token | Yes | Yes |
+| Offline/refresh recovery after enqueue | No | Yes |
+| `externalUserRef` (Mode A) | Yes | Not yet |
+| `merchantId` | Yes | Not yet |
+| `items` product snapshot | Yes | Not yet |
+
+The metadata parity gap is tracked in `Packiko/video#155`. Until it lands, choose the durable
+path for standard/Mode B integrations; do not silently migrate a direct-upload integration
+that depends on the three optional metadata fields.
+
+## Guarantee boundary
+
+| Event | Guarantee |
+|---|---|
+| Network/server failure after `enqueue()` resolves | Durable job retries |
+| Refresh or tab close after `enqueue()` resolves | Job recovers on next app load |
+| Partner document not ready | Job parks until `nudge()`/retry |
+| Route unmount while JavaScript can still finalize | Host must stop and enqueue; the React example demonstrates this |
+| Browser/process crash or power loss during REC | Not guaranteed; tracked in `Packiko/video#156` |
+| Storage quota/write failure | `enqueue()` rejects; keep the in-memory Blob downloadable |
+
+## Go-live checklist
+
+- Pin an explicit SDK version and register every production/staging origin.
+- Create one app-wide queue; do not create a new queue per screen or order.
+- Freeze Partner order/user context when recording starts.
+- Wait for `enqueue()` before showing “safe to leave”.
+- Implement `attach` idempotently and call `nudge()` when the Partner document becomes ready.
+- Configure `getOwnerId` and render `retry`/`review` states with Retry and Download actions.
+- Resolve auth tokens fresh per request; never persist signed playback URLs or secrets.
+- Test offline-before-stop, refresh-after-enqueue, server 5xx, token expiry, storage-full,
+  user switch, delayed document creation, and playback processing/unavailable states.
+- Define local evidence retention/privacy policy and support escalation for jobs in `review`.
 
 ## Flow
 

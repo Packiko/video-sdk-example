@@ -22,14 +22,18 @@ function ModeAPanel() {
       <h3>🅰️ Mode A — คุณเป็นคนรับรอง user เอง</h3>
       <p>
         ทุก request ใช้แค่ publishable key (<code>pk_...</code>) + origin ของหน้าเว็บต้องอยู่ใน allowlist
-        ส่วน "วิดีโอนี้เป็นของ user คนไหน" คุณส่งมาเองผ่าน <code>external_user_ref</code> —
+        ส่วน "วิดีโอนี้เป็นของ user คนไหน" direct upload ส่งผ่าน <code>externalUserRef</code> —
         server <b>ไม่ verify</b> ค่านี้ ระบบของคุณเป็นคนรับรอง (attest) ว่าถูกต้อง
       </p>
       <Code>{`const config = {
   apiBaseUrl: 'https://api.packiko.com',
   publicKey: 'pk_...',
 }
-// ระบุ user ตอน mint: คุณรับรองเอง server เก็บตามที่ส่งมา
+// SDK 0.3: direct upload ส่ง ref นี้ไป Video API
+await recorder.upload(blob, { orderRef, externalUserRef: 'user-1234' })
+
+// Durable queue ใช้ userRef ใน context/getOwnerId เพื่อกันงานข้าม user
+// แต่ 0.3 ยังไม่ส่ง externalUserRef ไป Video API (ติดตาม Packiko/video#155)
 await queue.enqueue({ blob, orderRef, context: { userRef: 'user-1234' } })`}</Code>
       <div style={box}>
         <p>💡 <b>เคสตรงตัว:</b> ระบบ auth ภายในที่ออก token แบบ HS256 (symmetric) — server เรา verify

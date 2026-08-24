@@ -4,6 +4,34 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-25 — production golden path (SDK 0.3.0)
+
+### Added
+
+- `ProductionRecorder` connects camera capture directly to the app-wide durable queue:
+  stop, finalize the Blob, persist it locally, then release the camera while upload and
+  Partner attachment continue independently of the screen.
+- Recovery tray with retry, download, deferred-document creation, `nudge()`, owner guard,
+  storage-error visibility, retry timing, and session outcomes.
+- Failure lab, guarantee matrix, metadata compatibility table, and production go-live
+  checklist for Partner implementation.
+
+### Changed
+
+- React Learn, Playground, README, and the vanilla walkthrough now lead with the same
+  production path. The former `useRecorder` flow remains clearly labeled as a minimal
+  direct-upload demo.
+- Vanilla recording now freezes the Partner order reference, rescues route/page lifecycle
+  exits on a best-effort basis, and retains an in-memory Download action if durable storage
+  fails.
+
+### Deferred
+
+- Durable queue 0.3.0 does not yet carry optional `externalUserRef`, `merchantId`, or `items`;
+  metadata parity and a shorter React facade are tracked in Packiko/video#155.
+- Browser/process crash or power loss during active recording remains outside the current
+  guarantee and is tracked in Packiko/video#156.
+
 ## 2026-08-24 — React queue copy matches the step-4 story (SDK 0.3.0)
 
 ### Changed

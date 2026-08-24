@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useRecorder, useUploadQueue } from '@packiko/video-sdk/react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useUploadQueue } from '@packiko/video-sdk/react'
 import { createPlayer, PackikoError } from '@packiko/video-sdk'
 import { sdkConfig } from './sdk'
-import { queue, createDocument, hasDocument, requestBackgroundSync } from './queue'
+import { queue, createDocument, hasDocument } from './queue'
+import ProductionRecorder from './ProductionRecorder'
+import QueueDemo from './QueueDemo'
 
 // ── Guided walkthrough ──────────────────────────────────────────────────────
 // One SDK concept per step: explanation → the exact code → a live widget that
@@ -21,41 +23,17 @@ function Code({ children }: { children: string }) {
 
 // step 1 ────────────────────────────────────────────────────────────────────
 function SetupStep() {
+  const hasPublicKey = Boolean(sdkConfig.publicKey)
   return (
     <div style={box}>
-      <p>✅ หน้านี้ตั้งค่าไว้แล้วจาก <code>.env</code> — origin <code>http://localhost:5173</code> ต้องถูกลงทะเบียนกับ ThaiCloud ก่อน key ถึงใช้ได้</p>
+      <p>API URL: <code>{sdkConfig.apiBaseUrl}</code></p>
+      <p>Publishable key: <b>{hasPublicKey ? 'พร้อม' : 'ยังไม่ได้ตั้งค่าใน .env'}</b></p>
+      <p>Origin <code>http://localhost:5173</code> ต้องถูกลงทะเบียนกับ ThaiCloud ก่อน key ถึงใช้ได้</p>
     </div>
   )
 }
 
-// step 2 ────────────────────────────────────────────────────────────────────
-function RecordStep({ onVideoId }: { onVideoId: (id: string) => void }) {
-  const { previewStream, state, progress, videoId, error, start, stop } = useRecorder({
-    ...sdkConfig,
-    orderRef: 'learn-demo-001',
-  })
-  const videoRef = useRef<HTMLVideoElement>(null)
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = previewStream
-  }, [previewStream])
-  useEffect(() => {
-    if (videoId) onVideoId(videoId)
-  }, [videoId, onVideoId])
-  return (
-    <div style={box}>
-      <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', background: '#000', borderRadius: 8 }} />
-      <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
-        <button onClick={start} disabled={!(state === 'idle' && previewStream)}>เริ่มอัด</button>
-        <button onClick={stop} disabled={state !== 'recording'}>หยุด (แล้วอัปโหลดอัตโนมัติ)</button>
-      </div>
-      <p>state: <b>{state}</b>{progress != null && <> · upload {Math.round(progress * 100)}%</>}</p>
-      {error && <p style={{ color: 'crimson' }}>{error.code}: {error.message}</p>}
-      {videoId && <p>🎉 ได้ <code>videoId: {videoId}</code> — จำไว้ใช้ขั้นถัดไปให้แล้ว</p>}
-    </div>
-  )
-}
-
-// step 3 ────────────────────────────────────────────────────────────────────
+// playback ──────────────────────────────────────────────────────────────────
 function PlaybackStep({ videoId }: { videoId: string }) {
   const [id, setId] = useState(videoId)
   const [url, setUrl] = useState('')
@@ -87,43 +65,10 @@ function PlaybackStep({ videoId }: { videoId: string }) {
   )
 }
 
-// steps 4-6 share the app queue ─────────────────────────────────────────────
-function QueueStep({ orderRef, onOrderRef }: { orderRef: string; onOrderRef: (ref: string) => void }) {
-  // The active order lives in the wizard (lifted state), not here — this step
-  // unmounts when you navigate away and must not forget the job it created.
-  const { jobs } = useUploadQueue(queue)
-  const enqueue = async (file: File) => {
-    const ref = `learn-${Date.now()}`
-    onOrderRef(ref)
-    await queue.enqueue({ blob: file, context: { orderRef: ref }, orderRef: ref })
-    requestBackgroundSync()
-  }
-  const job = jobs.find((j) => j.context.orderRef === orderRef)
-  return (
-    <div style={box}>
-      <p>
-        <input type="file" accept="video/*" onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) void enqueue(f)
-          e.target.value = ''
-        }} />
-      </p>
-      {job && (
-        <p>
-          job <code>{job.context.orderRef}</code> → <b>{job.stage}</b>
-          {job.stage === 'retry' && ' — จอดรอเอกสารอยู่ (เราตั้งใจยังไม่สร้างเอกสาร) ✋ ไปขั้นถัดไปเลย'}
-        </p>
-      )}
-      {orderRef && !job && <p>🎉 job หายจากคิว = อัปโหลด + ผูกครบแล้ว (ถ้าผูกก่อนถึงขั้นถัดไป แปลว่าเอกสารมีอยู่แล้ว)</p>}
-      {!orderRef && <p style={{ color: '#888' }}>เลือกไฟล์วิดีโออะไรก็ได้ในเครื่อง (ไม่เกี่ยวกับคลิปขั้น 2 — ของจริงโค้ดคุณส่ง blob จากตัวอัดเข้า enqueue() ตรงๆ ไม่มีการเลือกไฟล์) — คลิปจะถูกเก็บลงเครื่องก่อน แล้วค่อยอัปโหลดเบื้องหลัง</p>}
-    </div>
-  )
-}
-
 function AttachStep({ orderRef }: { orderRef: string }) {
   const { jobs } = useUploadQueue(queue)
   const job = jobs.find((j) => j.context.orderRef === orderRef)
-  if (!orderRef) return <div style={box}><p>⬅ ย้อนกลับไปเพิ่มคลิปเข้าคิวในขั้นก่อนก่อนครับ</p></div>
+  if (!orderRef) return <div style={box}><p>ย้อนกลับไปอัดคลิปในขั้น 2 ก่อนครับ</p></div>
   return (
     <div style={box}>
       {job && !hasDocument(orderRef) && (
@@ -138,17 +83,25 @@ function AttachStep({ orderRef }: { orderRef: string }) {
   )
 }
 
-function ResilienceStep() {
+function GoLiveStep() {
   const { jobs } = useUploadQueue(queue)
   return (
     <div style={box}>
-      <p>ลองทำสิ่งเหล่านี้แล้วดู Event log ในแท็บ Playground:</p>
+      <p>ทดสอบ failure cases เหล่านี้ก่อนเปิดใช้จริง:</p>
       <ul>
-        <li>🔄 <b>Refresh กลางอัปโหลด</b> — job กลับมาทำต่อเอง และไฟล์ที่ขึ้นแล้วจะไม่อัปซ้ำ</li>
-        <li>📴 <b>ปิดเน็ต</b> (DevTools → Network → Offline) — job รอ แล้วไปต่อเมื่อ online</li>
-        <li>❌ <b>ปิดแท็บทิ้งเลย</b> — เปิดใหม่ คิวโหลดกลับมาจากเครื่องเอง</li>
+        <li><b>Offline ก่อนหยุด</b> — stop/enqueue ต้องสำเร็จในเครื่อง แล้ว upload เมื่อ online</li>
+        <li><b>Refresh หลัง durable</b> — job ต้องกลับมาและทำต่อเอง</li>
+        <li><b>Server 5xx/token หมดอายุ</b> — job ต้องอยู่ใน retry/review พร้อม action ที่ตรงสถานะ</li>
+        <li><b>Local storage เต็ม</b> — UI ต้องไม่บอกว่าปลอดภัยและต้องให้ดาวน์โหลด Blob ที่ยังอยู่ใน memory</li>
+        <li><b>สลับ user</b> — owner guard ต้องหยุด job ไว้ให้ตรวจสอบ</li>
       </ul>
-      <p>ตอนนี้มี {jobs.length} job ในคิว{jobs.length > 0 && ' — ลองเลย'}</p>
+      <p>ตอนนี้มี {jobs.length} job ในคิว</p>
+      <p style={{ color: '#8a5a00' }}>
+        SDK 0.3.0 รับประกันหลัง enqueue สำเร็จ ไม่รับประกัน browser/process crash หรือไฟดับกลาง REC
+      </p>
+      <p style={{ color: '#8a5a00' }}>
+        Durable queue 0.3.0 ส่ง orderRef และ Mode B token ได้ แต่ยังไม่ส่ง optional externalUserRef, merchantId หรือ items แบบ direct upload
+      </p>
     </div>
   )
 }
@@ -158,6 +111,10 @@ export default function Learn() {
   const [step, setStep] = useState(0)
   const [videoId, setVideoId] = useState('')
   const [learnOrderRef, setLearnOrderRef] = useState('')
+
+  useEffect(() => queue.onOutcome((outcome) => {
+    if (outcome.status === 'bound' && outcome.context.orderRef === learnOrderRef) setVideoId(outcome.videoId)
+  }), [learnOrderRef])
 
   const steps = [
     {
@@ -172,41 +129,44 @@ const config = {
       body: <SetupStep />,
     },
     {
-      title: '2 · อัดวิดีโอ + อัปโหลด',
-      explain: 'useRecorder จัดการให้ครบ: ขอกล้อง → อัด → พอกดหยุด ไฟล์จะอัปโหลดตรงขึ้น storage (ไม่ผ่าน server ของคุณ) แล้วได้ videoId กลับมา',
-      code: `const { previewStream, state, progress, videoId,
-        start, stop } = useRecorder({ ...config, orderRef })`,
-      body: <RecordStep onVideoId={setVideoId} />,
+      title: '2 · อัดแล้วเก็บเข้าคิวถาวร',
+      explain: 'Production path แยก finalization ออกจาก network: หยุดอัดให้ได้ Blob แล้วรอ enqueue เก็บลงเครื่องสำเร็จก่อน จึงถือว่าออกจากหน้าได้',
+      code: `const capture = await createRecorder(config).capture()
+capture.start()
+
+const blob = await capture.stop()
+await queue.enqueue({ blob, context: { orderRef }, orderRef })
+capture.dispose() // durable ก่อน แล้ว network ทำต่อเบื้องหลัง`,
+      body: <div style={box}><ProductionRecorder onOrderRef={setLearnOrderRef} onVideoId={setVideoId} /></div>,
     },
     {
-      title: '3 · เปิดดูวิดีโอ',
-      explain: 'เอา videoId ไปขอลิงก์เล่น — ถ้าคลิปยัง transcode ไม่เสร็จ SDK จะรอให้จนพร้อม',
-      code: `const player = createPlayer(config)
-const { url } = await player.resolvePlaybackUrl(videoId)`,
-      body: <PlaybackStep videoId={videoId} />,
+      title: '3 · ดู recovery queue',
+      explain: 'คิวอยู่ระดับแอป ไม่อยู่ในหน้ากล้อง จึง upload/retry ต่อได้หลัง component unmount และมี Download เป็นทางออกเมื่อ job ต้องตรวจสอบ',
+      code: `const { jobs, retry, download } = useUploadQueue(queue)
+// render queued/uploading/uploaded/attaching/retry/review`,
+      body: <div style={box}><QueueDemo /></div>,
     },
     {
-      title: '4 · คิวถาวร (enqueue)',
-      explain: 'โจทย์จริงหน้างาน: เน็ตหน้าคลังไม่นิ่ง อัปโหลดตรงๆ แบบขั้น 2 คลิปหายกลางทางได้ — enqueue() จึงเก็บคลิปลงเครื่อง "ก่อน" ยิง network ใดๆ: ตั้งแต่วินาทีนั้น refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย คิวอัปโหลดเบื้องหลัง + retry ให้เอง (ส่วน "คลิปเสร็จก่อนเอกสาร" คือขั้นถัดไป)',
-      code: `const queue = createUploadQueue(config, {
-  releaseWhen: (job) => documentReady(job.context),
-  attach: (job) => bindClip(job.context, job.videoId),
-})
-await queue.enqueue({ blob, context, orderRef })  // durable ทันที`,
-      body: <QueueStep orderRef={learnOrderRef} onOrderRef={setLearnOrderRef} />,
-    },
-    {
-      title: '5 · ผูกกับเอกสารทีหลัง (deferred attach)',
+      title: '4 · ผูกกับเอกสาร Partner ทีหลัง',
       explain: 'ปัญหาจริง: คลิปอัปเสร็จก่อนเอกสารพร้อมรับ — คิวแก้ให้โดย "จอดรอ" (ไม่นับเป็น fail) จนกว่า releaseWhen จะตอบ true แล้วพอเอกสารพร้อม เรียก nudge() เพื่อผูกทันทีไม่ต้องรอรอบ',
       code: `// ตอนเอกสารเพิ่งถูกสร้าง:
 await queue.nudge((job) => job.context.orderRef === orderRef)`,
       body: <AttachStep orderRef={learnOrderRef} />,
     },
     {
-      title: '6 · ทดสอบความทน',
-      explain: 'ของจริงพังเสมอ — คิวออกแบบมาให้รอด ลองพังดูเองได้เลย',
-      code: `// ไม่ต้องเขียนโค้ดเพิ่ม — ความทนมากับ createUploadQueue อยู่แล้ว`,
-      body: <ResilienceStep />,
+      title: '5 · เปิดดูวิดีโอ',
+      explain: 'หลัง Partner backend ผูก videoId แล้ว ให้ขอลิงก์เล่นแบบมีอายุจาก Video API; คลิปที่ยังประมวลผลไม่ใช่ error',
+      code: `const player = createPlayer(config)
+const { url } = await player.resolvePlaybackUrl(videoId)`,
+      body: <PlaybackStep videoId={videoId} />,
+    },
+    {
+      title: '6 · Failure lab และ go-live',
+      explain: 'ทดสอบขอบเขตความทนกับระบบจริงของคุณก่อนใช้งาน และสื่อสารสิ่งที่ยังไม่รับประกันอย่างตรงไปตรงมา',
+      code: `// offline → stop → durable enqueue → online → upload
+// refresh after enqueue → recover
+// storage failure → keep Blob downloadable`,
+      body: <GoLiveStep />,
     },
   ]
 

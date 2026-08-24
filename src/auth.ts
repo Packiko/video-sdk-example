@@ -21,18 +21,24 @@ export const modeBConfigured = Boolean(modeB.publicKey)
 
 let kc: Keycloak | null = null
 export let authInitError = false
+let resolveAuthReady!: () => void
+export const authReady = new Promise<void>((resolve) => {
+  resolveAuthReady = resolve
+})
 
 // Call once before render. Login is a full redirect, so after Keycloak sends
 // the browser back here init() resumes the session from the callback URL —
 // no mid-session mode switching is ever needed.
 export async function initAuth(): Promise<void> {
-  if (!modeBConfigured) return
-  const keycloak = new Keycloak({ url: modeB.url!, realm: modeB.realm!, clientId: modeB.clientId! })
   try {
+    if (!modeBConfigured) return
+    const keycloak = new Keycloak({ url: modeB.url!, realm: modeB.realm!, clientId: modeB.clientId! })
     await keycloak.init({ pkceMethod: 'S256' })
     kc = keycloak
   } catch {
     authInitError = true // Keycloak unreachable/misconfigured → stay Mode A
+  } finally {
+    resolveAuthReady()
   }
 }
 
