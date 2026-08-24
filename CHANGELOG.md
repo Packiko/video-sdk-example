@@ -4,6 +4,17 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — plain.html: auth mode is the FIRST choice (SDK 0.3.0)
+
+### Changed
+
+- Reworked after UX feedback: the auth-mode decision moved from a bolted-on step 5 to
+  **step 1, before anything else** — it decides which key and whether to login, so it cannot
+  come last. No default: the page asks the OIDC-or-not question and reveals only the chosen
+  mode's config panel (Mode A: pk input · Mode B: IdP fields + live login). Steps 2-4 guard
+  with mode-aware messages ("เลือกโหมดในขั้น 1" / "Login ก่อน") and the choice survives the
+  login redirect via sessionStorage.
+
 ## 2026-08-24 — Mode B in the vanilla path (SDK 0.3.0)
 
 ### Added
