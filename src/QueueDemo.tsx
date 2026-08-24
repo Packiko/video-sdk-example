@@ -38,6 +38,9 @@ export default function QueueDemo() {
           />
         </label>
       </p>
+      <p style={{ color: '#888', fontSize: 14 }}>
+        Any local video file works — real integrations pass the recorder's blob straight to <code>enqueue()</code>, no file picking.
+      </p>
       {storageError && <p style={{ color: 'crimson' }}>Local storage failing: {storageError}</p>}
 
       <h3>Jobs</h3>

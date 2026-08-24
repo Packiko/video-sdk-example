@@ -115,7 +115,7 @@ function QueueStep({ orderRef, onOrderRef }: { orderRef: string; onOrderRef: (re
         </p>
       )}
       {orderRef && !job && <p>🎉 job หายจากคิว = อัปโหลด + ผูกครบแล้ว (ถ้าผูกก่อนถึงขั้นถัดไป แปลว่าเอกสารมีอยู่แล้ว)</p>}
-      {!orderRef && <p style={{ color: '#888' }}>เลือกไฟล์วิดีโอ 1 ไฟล์ — คลิปจะถูกเก็บลงเครื่องก่อน แล้วค่อยอัปโหลดเบื้องหลัง</p>}
+      {!orderRef && <p style={{ color: '#888' }}>เลือกไฟล์วิดีโออะไรก็ได้ในเครื่อง (ไม่เกี่ยวกับคลิปขั้น 2 — ของจริงโค้ดคุณส่ง blob จากตัวอัดเข้า enqueue() ตรงๆ ไม่มีการเลือกไฟล์) — คลิปจะถูกเก็บลงเครื่องก่อน แล้วค่อยอัปโหลดเบื้องหลัง</p>}
     </div>
   )
 }
@@ -187,7 +187,7 @@ const { url } = await player.resolvePlaybackUrl(videoId)`,
     },
     {
       title: '4 · คิวถาวร (enqueue)',
-      explain: 'enqueue() เก็บคลิปลงเครื่อง "ก่อน" ยิง network ใดๆ — ตั้งแต่วินาทีนั้น refresh/ปิดแท็บ/เน็ตหลุด ไม่ทำให้คลิปหาย คิวจะอัปโหลดเบื้องหลังและ retry ให้เอง',
+      explain: 'โจทย์จริงหน้างาน: เน็ตหน้าคลังไม่นิ่ง อัปโหลดตรงๆ แบบขั้น 2 คลิปหายกลางทางได้ — enqueue() จึงเก็บคลิปลงเครื่อง "ก่อน" ยิง network ใดๆ: ตั้งแต่วินาทีนั้น refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย คิวอัปโหลดเบื้องหลัง + retry ให้เอง (ส่วน "คลิปเสร็จก่อนเอกสาร" คือขั้นถัดไป)',
       code: `const queue = createUploadQueue(config, {
   releaseWhen: (job) => documentReady(job.context),
   attach: (job) => bindClip(job.context, job.videoId),

@@ -4,6 +4,21 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — React queue copy matches the step-4 story (SDK 0.3.0)
+
+### Changed
+
+- **Learn step 4** opens with the warehouse scenario (flaky network → clip loss) before
+  introducing `enqueue()`, and points forward to step 5 for the clip-before-document half —
+  mirroring the plain.html rework.
+- **File-picker clarification** in both React surfaces (Learn step 4 empty-state hint, Thai ·
+  Playground → Queue, English): any local video file works; real integrations pass the
+  recorder's blob straight to `enqueue()` — the picker is a demo stand-in, unrelated to the
+  step-2 recording.
+- No "use clip from step 2" button on the React side (deliberate): `useRecorder` uploads on
+  stop, so no blob is held — rebuilding step 2 on the low-level API would remove the
+  `useRecorder` example React partners actually use.
+
 ## 2026-08-24 — step 4 tells its story (SDK 0.3.0)
 
 ### Changed
