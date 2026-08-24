@@ -4,6 +4,25 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — interactive auth-mode chooser + optional Mode B login (SDK 0.3.0)
+
+### Added
+
+- **🔐 Auth tab** (`src/AuthModes.tsx`): interactive chooser — "does your IdP speak OIDC + JWKS?"
+  routes to a Mode A panel (pk + `external_user_ref` attestation, HS256 limitation) or a Mode B
+  panel (4-step token flow, one-line SDK config, live Keycloak login).
+- **Optional Mode B login** (`src/auth.ts`, keycloak-js + PKCE): redirect login against ThaiCloud
+  UAT Keycloak (realm `common`, baked-in defaults; `VITE_PACKIKO_MODE_B_*` env overrides for your
+  own IdP). While logged in, `sdkConfig` switches every request to the Mode B key +
+  `X-User-Token` via getters — no consumer changes. Mode A behavior is byte-identical when not
+  logged in; the login UI is hidden until the Mode B key is provisioned.
+
+### Deferred
+
+- `DEFAULT_MODE_B_PUBLIC_KEY` in `src/auth.ts` is empty until ThaiCloud provisions the Mode B
+  tenant_client (human runbook) — the live-login box shows "not enabled yet" until then.
+- `plain.html` stays Mode A only.
+
 ## 2026-08-24 — CDN v0.3.0 verified
 
 ### Changed
