@@ -10,7 +10,9 @@
     createUploadQueue/PackikoError. The /react hooks are NOT in this build.
     Upgrade: bump the version in the <script src> path (v0.3.0 -> v0.3.1).
 
-    Config (apiBaseUrl + pk_) is entered in step 1 — NO key is stored in this file.
+    Config (apiBaseUrl + pk_) is entered in step 1 — the Mode A key is never stored in
+    this file. The Mode B key in step 5 IS prefilled (deliberate: a Mode B key is
+    enforce-or-reject — inert without a live JWT from its realm).
     Origin: this page is http://localhost:5173 (same Vite server as the React app); that
     origin must be registered with ThaiCloud before upload/playback work.
 
@@ -92,6 +94,36 @@ await queue.nudge();                                   // เอกสารพ�
       <ul id="jobs" style="padding-left:0"></ul>
     </details>
 
+    <details>
+      <summary>ขั้น 5 · Mode B — User JWT (ทางเลือก)</summary>
+      <p class="hint">คำถามเดียวตัดสิน: ระบบ login ของคุณใช้ <b>IdP แบบ OIDC ที่เผยแพร่ JWKS</b> ไหม
+        (Keycloak, Auth0, Entra ID — มี <code>.well-known/openid-configuration</code>)?
+        <br>• <b>ไม่ / token เป็น HS256 (symmetric)</b> → server verify ให้ไม่ได้ — ใช้ขั้น 1-4 (Mode A)
+        แล้วรับรอง user เองผ่าน <code>external_user_ref</code> ตามเดิม
+        <br>• <b>ใช่</b> → Mode B: ทุก request แนบ JWT ให้ server verify — ต่อให้ pk_ หลุด
+        คนอื่นก็ mint ไม่ได้เพราะไม่มี token จริง และวิดีโอผูกกับ user ที่ verify แล้ว</p>
+      <pre class="code">// vanilla: เพิ่ม getUserToken ใน config — SDK แนบ X-User-Token ให้ทุก request เอง
+import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
+const kc = new Keycloak({ url, realm, clientId });
+await kc.init({ pkceMethod: 'S256' });            // login เป็น redirect ไป-กลับ
+const config = { apiBaseUrl, publicKey,            // pk ตัวที่เปิด Mode B ไว้
+  getUserToken: async () => { await kc.updateToken(30); return kc.token; } };</pre>
+      <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <input id="mbPkInput" placeholder="pk_... (Mode B)" />
+        <input id="kcUrlInput" placeholder="Keycloak URL" />
+        <input id="kcRealmInput" placeholder="realm" />
+        <input id="kcClientInput" placeholder="client id" />
+      </section>
+      <p class="hint">ค่า default = demo tenant ของ ThaiCloud (UAT) — ชี้ IdP ของคุณเองได้โดยแก้ 4 ช่องนี้</p>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="kcLoginBtn" disabled>🔐 Login (Mode B)</button>
+        <button id="kcLogoutBtn" hidden>Logout (กลับ Mode A)</button>
+      </div>
+      <p>สถานะ: <b id="mbState">กำลังเตรียม…</b></p>
+      <p class="hint">หลัง login ขั้น 2-4 <b>ทั้งหมด</b> จะสลับไปใช้ pk Mode B + แนบ token อัตโนมัติ
+        (key ที่เปิด Mode B เป็นแบบ enforce-or-reject — token หาย/หมดอายุ = 401 เสมอ ไม่หล่นกลับ Mode A เงียบๆ)</p>
+    </details>
+
     <section>
       <b>Event log</b> <span class="hint">— SDK ทำอะไรอยู่ ดูได้ที่นี่ (ใหม่สุดอยู่บน)</span>
       <div id="log"><ul id="logList"></ul></div>
@@ -103,8 +135,13 @@ await queue.nudge();                                   // เอกสารพ�
     const { createRecorder, createPlayer, createUploadQueue, PackikoError } = PackikoVideo;
     const $ = (id) => document.getElementById(id);
     const fmtErr = (e) => e instanceof PackikoError ? `${e.code}: ${e.message}` : String(e);
-    // Read config at call time so the typed pk_/apiBaseUrl are used.
-    const cfg = () => ({ apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() });
+    // Read config at call time so the typed pk_/apiBaseUrl are used. When the
+    // step-5 Keycloak login is active (window.PackikoModeB, set by the module
+    // script below), every call switches to the Mode B key + user token —
+    // login is a full redirect, so the switch always lands on a fresh page.
+    const cfg = () => window.PackikoModeB?.active
+      ? { apiBaseUrl: $('apiInput').value.trim(), publicKey: window.PackikoModeB.publicKey, getUserToken: window.PackikoModeB.getUserToken }
+      : { apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() };
     const needPk = (el) => { if (!cfg().publicKey) { el.textContent = 'กรอก pk_ ในขั้น 1 ก่อนครับ'; return true } return false };
 
     // ── event log ──────────────────────────────────────────────────────────
@@ -259,6 +296,77 @@ await queue.nudge();                                   // เอกสารพ�
       const orderRef = `plain-${Date.now()}`;
       await getQueue().enqueue({ blob: file, context: { orderRef }, orderRef });
       logEvent('queue', `enqueue(${orderRef})`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
+    });
+  </script>
+
+  <!-- ── step 5: Mode B (optional) — keycloak-js is ESM-only, so a module script.
+       Runs after the classic script above; talks to it via window.PackikoModeB. -->
+  <script type="module">
+    import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
+    const $ = (id) => document.getElementById(id);
+    // ThaiCloud UAT demo defaults — same values as the React app (src/auth.ts).
+    const DEFAULTS = {
+      pk: 'pk_uat_example_41340973f06bfdfbd095a3e832aa93d4234eccefa845e94d',
+      url: 'https://login.thaicloud.com',
+      realm: 'common',
+      clientId: '019be89c-cc99-7f1d-b5c6-ca4ddddddddd',
+    };
+    // The login redirect reloads this page, so persist what the user typed —
+    // otherwise a custom-IdP round-trip would resume against the defaults.
+    const saved = JSON.parse(sessionStorage.getItem('plainModeB') ?? 'null');
+    $('mbPkInput').value = saved?.pk ?? DEFAULTS.pk;
+    $('kcUrlInput').value = saved?.url ?? DEFAULTS.url;
+    $('kcRealmInput').value = saved?.realm ?? DEFAULTS.realm;
+    $('kcClientInput').value = saved?.clientId ?? DEFAULTS.clientId;
+    const current = () => ({
+      pk: $('mbPkInput').value.trim(), url: $('kcUrlInput').value.trim(),
+      realm: $('kcRealmInput').value.trim(), clientId: $('kcClientInput').value.trim(),
+    });
+
+    const kc = new Keycloak({ url: $('kcUrlInput').value, realm: $('kcRealmInput').value, clientId: $('kcClientInput').value });
+    try {
+      await kc.init({ pkceMethod: 'S256' }); // resumes the session on redirect return
+    } catch (e) {
+      $('mbState').textContent = 'ติดต่อ Keycloak ไม่ได้ — เช็ค URL/realm/client id';
+      logEvent('modeB', `init error: ${e}`);
+    }
+
+    if (kc.authenticated) {
+      window.PackikoModeB = {
+        active: true,
+        get publicKey() { return $('mbPkInput').value.trim() },
+        // SDK awaits this per request — refresh keeps X-User-Token fresh.
+        getUserToken: async () => { try { await kc.updateToken(30) } catch {} return kc.token ?? '' },
+      };
+      $('mbState').textContent = `Mode B active — sub: ${kc.tokenParsed?.sub ?? '?'}`;
+      $('kcLogoutBtn').hidden = false;
+      logEvent('modeB', `login สำเร็จ (sub: ${kc.tokenParsed?.sub ?? '?'})`, 'ขั้น 2-4 ใช้ pk Mode B + X-User-Token แล้ว — เปิด DevTools → Network ดู header ได้');
+    } else if (!$('mbState').textContent.startsWith('ติดต่อ')) {
+      $('mbState').textContent = 'ยังไม่ login (ขั้น 1-4 ใช้ Mode A ตามเดิม)';
+      // The user edited the IdP fields and we reloaded to rebuild kc — continue.
+      if (sessionStorage.getItem('plainModeBAutoLogin')) {
+        sessionStorage.removeItem('plainModeBAutoLogin');
+        void kc.login({ redirectUri: window.location.href });
+      }
+    }
+    $('kcLoginBtn').disabled = false;
+
+    $('kcLoginBtn').addEventListener('click', () => {
+      const now = current();
+      sessionStorage.setItem('plainModeB', JSON.stringify(now));
+      // kc was constructed from the values at page load — if the user edited
+      // the IdP fields since, reload so kc rebuilds, then auto-continue.
+      const built = saved ?? DEFAULTS;
+      if (now.url !== built.url || now.realm !== built.realm || now.clientId !== built.clientId) {
+        sessionStorage.setItem('plainModeBAutoLogin', '1');
+        window.location.reload();
+        return;
+      }
+      void kc.login({ redirectUri: window.location.href });
+    });
+    $('kcLogoutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('plainModeB');
+      void kc.logout({ redirectUri: window.location.href });
     });
   </script>
 </body>

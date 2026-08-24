@@ -4,6 +4,17 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — Mode B in the vanilla path (SDK 0.3.0)
+
+### Added
+
+- **`plain.html` step 5 — Mode B (optional)**: the OIDC-or-not decision framing, a vanilla
+  `getUserToken` code sample, and a live Keycloak login (keycloak-js via jsdelivr `+esm`,
+  PKCE S256). IdP fields are editable (ThaiCloud UAT defaults prefilled; sessionStorage keeps
+  edits across the login redirect); after login, `cfg()` switches steps 2-4 to the Mode B key +
+  `X-User-Token` automatically. Generic for any OIDC+JWKS partner on the vanilla path — HS256
+  token systems stay Mode A + `external_user_ref` (step 5 says so explicitly).
+
 ## 2026-08-24 — interactive auth-mode chooser + optional Mode B login (SDK 0.3.0)
 
 ### Added
