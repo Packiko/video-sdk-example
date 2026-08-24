@@ -26,6 +26,23 @@ origin you'll use (e.g. `http://localhost:5173` for local dev) to have it allowl
 ### Publishable key
 A `pk_...` key from your ThaiCloud tenant — publishable (safe in a browser bundle).
 
+### Auth modes — Mode A vs Mode B (optional)
+One question decides the mode: **does your login system use an OIDC IdP that publishes JWKS**
+(Keycloak, Auth0, Entra ID, …)?
+
+- **No / in-house auth** → **Mode A**: the `pk_` alone; you attest user identity yourself via
+  `external_user_ref`. This is what the demo runs by default. (Symmetric tokens — e.g. HS256 —
+  cannot be verified by the video service, so in-house token systems land here too.)
+- **Yes** → **Mode B**: add one config line — `getUserToken: () => yourAuth.getAccessToken()` —
+  and the SDK sends the JWT as `X-User-Token` on every request. The video service verifies
+  signature/issuer/expiry against your JWKS and binds each video to the verified `sub`.
+  ThaiCloud enables it per key with two values (your issuer + JWKS URL); no deploy. A Mode B key
+  is enforce-or-reject: a missing or bad token is always a 401, never a silent Mode A fallback.
+
+The app's **🔐 Auth tab** walks this choice interactively, with a live Keycloak login on the
+Mode B path (ThaiCloud UAT defaults are baked in; override with the `VITE_PACKIKO_MODE_B_*`
+env vars in `.env.example` to point at your own IdP).
+
 ---
 
 ## Path A — React (npm)
