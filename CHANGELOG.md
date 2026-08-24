@@ -17,10 +17,15 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
   `X-User-Token` via getters — no consumer changes. Mode A behavior is byte-identical when not
   logged in; the login UI is hidden until the Mode B key is provisioned.
 
+### Changed (same day, after provisioning)
+
+- `DEFAULT_MODE_B_PUBLIC_KEY` filled with the provisioned UAT key and the Keycloak client id
+  default corrected to ThaiCloud's UUID convention — the Mode B login demo is now live from a
+  clean clone. (Committing the pk is deliberate: a Mode B key is enforce-or-reject, inert
+  without a live realm-`common` JWT.)
+
 ### Deferred
 
-- `DEFAULT_MODE_B_PUBLIC_KEY` in `src/auth.ts` is empty until ThaiCloud provisions the Mode B
-  tenant_client (human runbook) — the live-login box shows "not enabled yet" until then.
 - `plain.html` stays Mode A only.
 
 ## 2026-08-24 — CDN v0.3.0 verified
