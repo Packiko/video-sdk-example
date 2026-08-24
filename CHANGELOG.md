@@ -4,6 +4,33 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — plain.html UX hardening from PO field-testing (SDK 0.3.0)
+
+### Fixed
+
+- **Stop-recording dead-end**: stop used to be gated behind the pk check, so recording
+  started without a key could never be stopped. Stop now always works and never touches the
+  network; the blob is held on the page and **upload is its own button** — a failed upload
+  (wrong origin, missing key) is retryable without re-recording, and the step no longer
+  bricks after one failure.
+- **Camera could not be turned off**: added a "ปิดกล้อง" button, and collapsing step 2 now
+  disposes the capture (previously only `pagehide` did).
+- **Playback of fresh clips no longer errors**: step 3 switched from `createPlayer` (throws
+  `timeout` while a clip is still transcoding) to `createPlaybackResolver` — `processing` is
+  shown as a normal state with a retry button, reserving errors for real failures.
+
+### Changed
+
+- **"ก่อนเริ่ม" prerequisites card**: origin registration (the #1 first-run trap — a pk only
+  works from its registered origins), publishable key, camera permission — stated on the page
+  instead of only in the README.
+- **Mode A identity**: step 1 gained an optional `externalUserRef` field, wired into the
+  step-2 upload (suppressed while Mode B is active — the token carries identity there).
+- **Human errors**: all error surfaces now route through `describeError(code, 'th')` with the
+  raw code in parentheses.
+- **Step status chips** on every summary + a visual pass (readable cards, labeled inputs,
+  focus states) — still one self-contained vanilla file, no build step.
+
 ## 2026-08-24 — Mode B in the vanilla path (SDK 0.3.0)
 
 ### Added

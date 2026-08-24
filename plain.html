@@ -6,31 +6,61 @@
   <title>Packiko Video SDK — vanilla (interactive)</title>
   <!--
     Vanilla interactive walkthrough: CORE SDK from R2 CDN, no bundler/React.
-    Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlayer/
-    createUploadQueue/PackikoError. The /react hooks are NOT in this build.
+    Classic <script src> => window.PackikoVideo (IIFE) => createRecorder/createPlaybackResolver/
+    createUploadQueue/describeError/PackikoError. The /react hooks are NOT in this build.
     Upgrade: bump the version in the <script src> path (v0.3.0 -> v0.3.1).
 
     Config (apiBaseUrl + pk_) is entered in step 1 — the Mode A key is never stored in
     this file. The Mode B key in step 5 IS prefilled (deliberate: a Mode B key is
     enforce-or-reject — inert without a live JWT from its realm).
-    Origin: this page is http://localhost:5173 (same Vite server as the React app); that
-    origin must be registered with ThaiCloud before upload/playback work.
+    Origin rule: a pk_ works ONLY from the origins it was registered for — the deployed
+    copy of this page works with keys registered for example.packiko.com; a partner's own
+    key works from the partner's registered origins (e.g. their localhost during dev).
+    The "ก่อนเริ่ม" card says this to the reader before anything can fail.
 
     Background Sync is demoed in the React app (public/sw.js) — this page keeps to the
     core flow so it stays copy-paste friendly.
   -->
   <style>
-    body { font-family: system-ui; margin: 0 }
-    main { max-width: 720px; margin: 2rem auto; padding: 0 1rem }
-    details { border: 1px solid #ddd; border-radius: 8px; margin-bottom: 12px; padding: 0 12px }
-    summary { font-weight: 600; padding: 12px 0; cursor: pointer }
-    pre.code { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; font-size: 13px; overflow-x: auto }
-    .hint { color: #666; font-size: 14px }
-    #log { border: 1px solid #ccc; border-radius: 8px; padding: 12px; font-size: 13px; max-height: 260px; overflow-y: auto }
-    #log li { border-bottom: 1px solid #eee; padding: 4px 0; list-style: none }
-    #log ul { padding: 0; margin: 8px 0 0 }
-    video { width: 100%; background: #000; border-radius: 8px }
-    button { margin-right: 6px }
+    :root {
+      --ink: #1c2733; --muted: #64748b; --line: #dbe3ea; --bg: #f5f7f9; --card: #fff;
+      --accent: #0e6a6d; --accent-bg: #e5f1f1; --warn-bg: #fff7e6; --warn-line: #f0dcae;
+      --err: #b3362f; --ok: #21764a;
+    }
+    * { box-sizing: border-box }
+    body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--ink); line-height: 1.65 }
+    main { max-width: 760px; margin: 0 auto; padding: 28px 16px 80px }
+    h1 { font-size: 26px; margin: 0 0 4px }
+    .hint { color: var(--muted); font-size: 14px }
+    .card.warn { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: 14px 18px; margin: 14px 0 }
+    .card.warn > b { display: block; margin-bottom: 4px }
+    details { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; padding: 0 18px }
+    summary { font-weight: 600; padding: 14px 0; cursor: pointer; display: flex; align-items: center; gap: 10px }
+    summary .st { margin-left: auto; font-size: 12.5px; font-weight: 500; border-radius: 99px; padding: 2px 12px; background: var(--bg); color: var(--muted); white-space: nowrap }
+    summary .st.on { background: var(--accent-bg); color: var(--accent) }
+    summary .st.ok { background: #e3f2e9; color: var(--ok) }
+    summary .st.err { background: #fbe9e7; color: var(--err) }
+    pre.code { background: #1e1e1e; color: #d4d4d4; padding: 12px 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; line-height: 1.55 }
+    input { font: inherit; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; width: 100% }
+    input:focus { outline: 2px solid var(--accent); outline-offset: 1px }
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 2px }
+    button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer }
+    button.go { background: var(--accent); border-color: var(--accent); color: #fff }
+    button:disabled { opacity: .45; cursor: not-allowed }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 }
+    .field { margin: 10px 0 }
+    .err { color: var(--err); font-size: 14px }
+    .okline { color: var(--ok); font-size: 14px }
+    video { width: 100%; background: #000; border-radius: 8px; display: block }
+    #log { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 12px 16px; font-size: 13px; max-height: 280px; overflow-y: auto }
+    #log li { border-bottom: 1px solid var(--line); padding: 5px 0; list-style: none }
+    #log ul { padding: 0; margin: 6px 0 0 }
+    #jobs { padding-left: 0 }
+    #jobs li { list-style: none; margin: 8px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+    code { background: var(--bg); border-radius: 5px; padding: 1px 6px; font-size: .9em }
+    ul.pre { margin: 6px 0; padding-left: 20px }
+    ul.pre li { margin: 3px 0 }
   </style>
 </head>
 <body>
@@ -38,68 +68,93 @@
     <h1>Packiko Video SDK — vanilla walkthrough</h1>
     <p class="hint">ทีละขั้นด้วย JavaScript ล้วน ไม่ต้องมี bundler/React — เปิดกล่องไล่จากบนลงล่าง แล้วดูผลจริงใน Event log ล่างสุด</p>
 
-    <details open>
-      <summary>ขั้น 1 · ตั้งค่า SDK</summary>
-      <p class="hint">ใช้แค่ publishable key (pk_...) — ปลอดภัยในเบราว์เซอร์ ไม่มี secret</p>
+    <div class="card warn">
+      <b>⚠ ก่อนเริ่ม — 3 อย่างที่ต้องมี ไม่งั้นจะติดตั้งแต่ขั้นอัปโหลด</b>
+      <ul class="pre">
+        <li><b>Origin ต้องขึ้นทะเบียน:</b> key <code>pk_...</code> ทุกตัวถูกผูกกับโดเมนที่แจ้งไว้เท่านั้น — key ของคุณใช้ได้จาก<b>โดเมนของคุณ</b> (เช่น localhost ตอน dev) เอามากรอกบนหน้านี้จะเจอ "โดเมนนี้ยังไม่ได้ขึ้นทะเบียน" ซึ่งถูกต้องแล้ว · แจ้ง origin ที่จะใช้กับ ThaiCloud ก่อนเริ่ม</li>
+        <li><b>Publishable key</b> (<code>pk_...</code>) จาก tenant ของคุณ — ปลอดภัยในเบราว์เซอร์ ไม่มี secret</li>
+        <li><b>สิทธิ์กล้อง+ไมค์</b> — เบราว์เซอร์จะถามตอนเปิดขั้น 2</li>
+      </ul>
+      <span class="hint">อยากลองครบวงจรบนหน้านี้เลย: ใช้ Mode B ในขั้น 5 (key demo เตรียมไว้ให้แล้ว) หรือขอ key ที่ขึ้นทะเบียนกับ <code>example.packiko.com</code></span>
+    </div>
+
+    <details open id="step1">
+      <summary>ขั้น 1 · ตั้งค่า SDK <span class="st" id="st1">ยังไม่กรอก key</span></summary>
       <pre class="code">&lt;script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"&gt;&lt;/script&gt;
-const { createRecorder, createPlayer, createUploadQueue } = PackikoVideo;
+const { createRecorder, createPlaybackResolver, createUploadQueue } = PackikoVideo;
 const config = { apiBaseUrl, publicKey };</pre>
-      <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-        <input id="apiInput" value="https://video-uat.packiko.com" placeholder="apiBaseUrl" />
-        <input id="pkInput" placeholder="pk_... (กรอก public key ของคุณ)" />
-      </section>
+      <div class="field"><label for="apiInput">apiBaseUrl</label><input id="apiInput" value="https://video-uat.packiko.com" /></div>
+      <div class="field"><label for="pkInput">publishable key</label><input id="pkInput" placeholder="pk_... (key ของ tenant คุณ · Mode A)" /></div>
+      <div class="field">
+        <label for="userRefInput">รหัสผู้ใช้ในระบบของคุณ (ไม่บังคับ · Mode A)</label>
+        <input id="userRefInput" placeholder='เช่น "emp-1042" — ระบบคุณยืนยันตัวตนเอง แล้วส่ง ref มาผูกกับคลิป' />
+        <span class="hint">ส่งเป็น <code>externalUserRef</code> ตอนอัปโหลด — คลิปบันทึกว่าใครเป็นคนอัด · ถ้า login ผ่าน Mode B (ขั้น 5) ตัวตนมาจาก token เอง ช่องนี้ไม่ถูกใช้</span>
+      </div>
     </details>
 
-    <details>
-      <summary>ขั้น 2 · อัดวิดีโอ + อัปโหลด</summary>
-      <p class="hint">กล้องเปิดตอนกางกล่องนี้ · กด Stop แล้วไฟล์อัปโหลดตรงขึ้น storage (ไม่ผ่าน server ของคุณ) ได้ videoId กลับมา</p>
-      <pre class="code">const cap = await createRecorder(config).capture();  // ขอกล้อง + preview
-cap.start();                                          // เริ่มอัด
-const blob = await cap.stop();                        // ได้ไฟล์
-const up = createRecorder(config).upload(blob, { orderRef });
-const { videoId } = await up.promise;                 // token → PUT → confirm</pre>
+    <details id="step2">
+      <summary>ขั้น 2 · อัดวิดีโอ + อัปโหลด <span class="st" id="st2">ยังไม่เปิดกล้อง</span></summary>
+      <p class="hint">กล้องเปิดตอนกางกล่องนี้ (หุบกล่อง = ปิดกล้อง) · กด "หยุดอัด" ได้เสมอ — ไฟล์จะรอในหน้า แล้วค่อยกดอัปโหลดเมื่อพร้อม</p>
+      <pre class="code">const cap = await createRecorder(config).capture();   // ขอกล้อง + preview
+cap.start();                                           // เริ่มอัด
+const blob = await cap.stop();                         // ได้ไฟล์ (หยุดได้เสมอ ไม่ต้องมี key)
+const up = createRecorder(config).upload(blob, { orderRef, externalUserRef });
+const { videoId } = await up.promise;                  // สำเร็จ = ได้ videoId</pre>
       <video id="preview" autoplay muted playsinline></video>
-      <div style="display:flex;gap:8px;margin:12px 0">
-        <button id="startBtn" disabled>เริ่มอัด</button>
-        <button id="stopBtn" disabled>หยุด (แล้วอัปโหลด)</button>
+      <div class="row">
+        <button id="startBtn" disabled>⏺ เริ่มอัด</button>
+        <button id="stopBtn" disabled>หยุดอัด</button>
+        <button id="camOffBtn" disabled>ปิดกล้อง</button>
+        <span class="hint">capture: <b id="recState">ยังไม่เปิดกล้อง</b></span>
       </div>
-      <p>capture: <b id="recState">ยังไม่เปิดกล้อง</b> <span id="upSpan"></span></p>
-      <p id="videoIdRow" hidden>🎉 videoId: <code id="videoId"></code> <button id="copyBtn">copy</button></p>
-      <p id="recErr" style="color:crimson"></p>
+      <div class="row" id="uploadRow" hidden>
+        <span class="okline">🎬 คลิปพร้อมแล้ว (<span id="clipSize"></span>)</span>
+        <button id="uploadBtn" class="go">⬆ อัปโหลดคลิปนี้</button>
+        <button id="reRecordBtn">อัดใหม่</button>
+        <b id="upSpan"></b>
+      </div>
+      <p id="videoIdRow" hidden>🎉 videoId: <code id="videoId"></code> <button id="copyBtn">copy</button> <span class="hint">— ใส่ให้ในขั้น 3 แล้ว</span></p>
+      <p id="recErr" class="err"></p>
     </details>
 
-    <details>
-      <summary>ขั้น 3 · เปิดดูวิดีโอ</summary>
-      <p class="hint">เอา videoId ไปขอลิงก์เล่น — ถ้าคลิปยัง transcode ไม่เสร็จ SDK รอให้จนพร้อม</p>
-      <pre class="code">const player = createPlayer(config);
-const { url } = await player.resolvePlaybackUrl(videoId);</pre>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
+    <details id="step3">
+      <summary>ขั้น 3 · เปิดดูวิดีโอ <span class="st" id="st3">รอ videoId</span></summary>
+      <p class="hint">เอา videoId ไปขอลิงก์เล่น — คลิปที่พร้อมแล้วได้ลิงก์ทันที · คลิปที่เพิ่งอัดอาจยังประมวลผลอยู่ กด "ลองใหม่" ได้เรื่อยๆ ไม่ใช่ความผิดพลาด</p>
+      <pre class="code">const resolver = createPlaybackResolver(config);
+const res = await resolver.resolve(videoId);
+// res.status: "ready" (ได้ res.url) | "processing" (รอแป๊บแล้วลองใหม่) | "unavailable"</pre>
+      <div class="row">
         <input id="pbInput" placeholder="videoId จากขั้น 2" style="flex:1" />
-        <button id="loadBtn">เปิดดู</button>
+        <button id="loadBtn" class="go">เปิดดู</button>
+        <button id="pbRetryBtn" hidden>↻ ลองใหม่</button>
       </div>
-      <p>state: <b id="pbPhase">idle</b> <span id="pbErr" style="color:crimson"></span></p>
+      <p class="hint">สถานะ: <b id="pbPhase">idle</b> <span id="pbErr" class="err"></span></p>
       <video id="pbVideo" controls playsinline></video>
     </details>
 
-    <details>
-      <summary>ขั้น 4 · คิวถาวร + ผูกเอกสารทีหลัง</summary>
-      <p class="hint">enqueue() เก็บคลิปลงเครื่อง "ก่อน" ยิง network — refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย · job จะจอดรอจน "เอกสาร" พร้อม (releaseWhen) แล้วค่อยผูก (attach)</p>
+    <details id="step4">
+      <summary>ขั้น 4 · คิวถาวร + ผูกเอกสารทีหลัง <span class="st" id="st4">—</span></summary>
+      <p class="hint">enqueue() เก็บคลิปลงเครื่อง "ก่อน" ยิง network — refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย · job จะจอดรอจน "เอกสาร" ของระบบคุณพร้อม (releaseWhen) แล้วค่อยผูก (attach)</p>
       <pre class="code">const queue = createUploadQueue(config, {
-  releaseWhen: (job) => documentReady(job.context),   // false = จอดรอ ไม่ใช่ fail
+  releaseWhen: (job) => documentReady(job.context),    // false = จอดรอ ไม่ใช่ fail
   attach: (job) => bindClip(job.context, job.videoId), // ต้อง idempotent
 });
 await queue.enqueue({ blob, context, orderRef });      // durable ทันที
 await queue.nudge();                                   // เอกสารพร้อมแล้ว เช็คเดี๋ยวนี้</pre>
-      <p><input type="file" id="fileInput" accept="video/*" /> <span class="hint">← เลือกคลิป 1 ไฟล์ (ยังไม่มีเอกสาร → จะจอดรอ)</span></p>
-      <ul id="jobs" style="padding-left:0"></ul>
+      <div class="row">
+        <input type="file" id="fileInput" accept="video/*" style="width:auto" />
+        <span class="hint">← เลือกคลิป 1 ไฟล์ (ยังไม่มีเอกสาร → job จะจอดรอ)</span>
+      </div>
+      <p id="qErr" class="err"></p>
+      <ul id="jobs"></ul>
     </details>
 
-    <details>
-      <summary>ขั้น 5 · Mode B — User JWT (ทางเลือก)</summary>
+    <details id="step5">
+      <summary>ขั้น 5 · Mode B — User JWT (ทางเลือก) <span class="st" id="st5">—</span></summary>
       <p class="hint">คำถามเดียวตัดสิน: ระบบ login ของคุณใช้ <b>IdP แบบ OIDC ที่เผยแพร่ JWKS</b> ไหม
         (Keycloak, Auth0, Entra ID — มี <code>.well-known/openid-configuration</code>)?
         <br>• <b>ไม่ / token เป็น HS256 (symmetric)</b> → server verify ให้ไม่ได้ — ใช้ขั้น 1-4 (Mode A)
-        แล้วรับรอง user เองผ่าน <code>external_user_ref</code> ตามเดิม
+        แล้วรับรอง user เองผ่าน <code>externalUserRef</code> ตามเดิม
         <br>• <b>ใช่</b> → Mode B: ทุก request แนบ JWT ให้ server verify — ต่อให้ pk_ หลุด
         คนอื่นก็ mint ไม่ได้เพราะไม่มี token จริง และวิดีโอผูกกับ user ที่ verify แล้ว</p>
       <pre class="code">// vanilla: เพิ่ม getUserToken ใน config — SDK แนบ X-User-Token ให้ทุก request เอง
@@ -108,15 +163,13 @@ const kc = new Keycloak({ url, realm, clientId });
 await kc.init({ pkceMethod: 'S256' });            // login เป็น redirect ไป-กลับ
 const config = { apiBaseUrl, publicKey,            // pk ตัวที่เปิด Mode B ไว้
   getUserToken: async () => { await kc.updateToken(30); return kc.token; } };</pre>
-      <section style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-        <input id="mbPkInput" placeholder="pk_... (Mode B)" />
-        <input id="kcUrlInput" placeholder="Keycloak URL" />
-        <input id="kcRealmInput" placeholder="realm" />
-        <input id="kcClientInput" placeholder="client id" />
-      </section>
+      <div class="field"><label for="mbPkInput">publishable key (Mode B)</label><input id="mbPkInput" /></div>
+      <div class="field"><label for="kcUrlInput">Keycloak URL</label><input id="kcUrlInput" /></div>
+      <div class="field"><label for="kcRealmInput">realm</label><input id="kcRealmInput" /></div>
+      <div class="field"><label for="kcClientInput">client id</label><input id="kcClientInput" /></div>
       <p class="hint">ค่า default = demo tenant ของ ThaiCloud (UAT) — ชี้ IdP ของคุณเองได้โดยแก้ 4 ช่องนี้</p>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button id="kcLoginBtn" disabled>🔐 Login (Mode B)</button>
+      <div class="row">
+        <button id="kcLoginBtn" class="go" disabled>🔐 Login (Mode B)</button>
         <button id="kcLogoutBtn" hidden>Logout (กลับ Mode A)</button>
       </div>
       <p>สถานะ: <b id="mbState">กำลังเตรียม…</b></p>
@@ -132,9 +185,10 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
 
   <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
   <script>
-    const { createRecorder, createPlayer, createUploadQueue, PackikoError } = PackikoVideo;
+    const { createRecorder, createPlaybackResolver, createUploadQueue, describeError, PackikoError } = PackikoVideo;
     const $ = (id) => document.getElementById(id);
-    const fmtErr = (e) => e instanceof PackikoError ? `${e.code}: ${e.message}` : String(e);
+    // ทุก error ผ่าน describeError → ภาษาคน (โค้ดดิบวงเล็บท้ายไว้แจ้งทีม support)
+    const fmtErr = (e) => e instanceof PackikoError ? `${describeError(e.code, 'th')} (${e.code})` : String(e);
     // Read config at call time so the typed pk_/apiBaseUrl are used. When the
     // step-5 Keycloak login is active (window.PackikoModeB, set by the module
     // script below), every call switches to the Mode B key + user token —
@@ -142,7 +196,10 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     const cfg = () => window.PackikoModeB?.active
       ? { apiBaseUrl: $('apiInput').value.trim(), publicKey: window.PackikoModeB.publicKey, getUserToken: window.PackikoModeB.getUserToken }
       : { apiBaseUrl: $('apiInput').value.trim(), publicKey: $('pkInput').value.trim() };
-    const needPk = (el) => { if (!cfg().publicKey) { el.textContent = 'กรอก pk_ ในขั้น 1 ก่อนครับ'; return true } return false };
+    const hasPk = () => cfg().publicKey !== '';
+    const setSt = (id, text, cls) => { const el = $(id); el.textContent = text; el.className = 'st' + (cls ? ' ' + cls : ''); };
+    const syncStep1 = () => setSt('st1', hasPk() ? 'พร้อมใช้' : 'ยังไม่กรอก key', hasPk() ? 'ok' : '');
+    $('pkInput').addEventListener('input', syncStep1);
 
     // ── event log ──────────────────────────────────────────────────────────
     // DOM APIs only — never innerHTML with interpolated values, even in a demo.
@@ -162,56 +219,116 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       $('logList').prepend(li);
     }
 
-    // ── step 2: record + upload (camera opens when the step is expanded) ───
-    let cap;
-    document.querySelectorAll('details')[1].addEventListener('toggle', async function () {
-      if (!this.open || cap) return;
+    // ── step 2: record → hold the blob → upload as its own action ──────────
+    // กติกา UX ของขั้นนี้ (จากบั๊กที่ผู้ใช้จริงเจอ):
+    //   1. "หยุดอัด" ต้องทำงานได้เสมอ — ห้ามมีเงื่อนไขใดขวางการหยุดอัด/ปิดกล้อง
+    //   2. อัปโหลดเป็นปุ่มของตัวเอง — พังแล้วกดซ้ำได้โดยไม่ต้องอัดใหม่ (ไฟล์ค้างอยู่ในหน้า)
+    //   3. หุบกล่อง = ปิดกล้อง · มีปุ่มปิดกล้องชัดๆ — ไฟกล้องค้างคือสิ่งที่ผู้ใช้ไม่ให้อภัย
+    let cap = null;
+    let heldBlob = null;
+    async function openCamera() {
       try {
         cap = await createRecorder(cfg()).capture();
         $('preview').srcObject = cap.previewStream;
         cap.on('state', (s) => { $('recState').textContent = s; logEvent('recorder', `capture state → ${s}`); });
         $('startBtn').disabled = false;
-        logEvent('recorder', 'เปิดกล้องแล้ว (getUserMedia)', 'แค่ขอกล้อง ยังไม่ต้องใช้ pk_');
-      } catch (e) { $('recErr').textContent = fmtErr(e); }
+        $('camOffBtn').disabled = false;
+        $('recErr').textContent = '';
+        setSt('st2', 'กล้องเปิดแล้ว', 'on');
+        logEvent('recorder', 'เปิดกล้องแล้ว (getUserMedia)', 'แค่ขอกล้อง ยังไม่ต้องใช้ pk_ — ต้องใช้ตอนอัปโหลด');
+      } catch (e) { $('recErr').textContent = fmtErr(e); setSt('st2', 'เปิดกล้องไม่ได้', 'err'); }
+    }
+    function closeCamera(label) {
+      cap?.dispose();
+      cap = null;
+      $('preview').srcObject = null;
+      $('startBtn').disabled = true; $('stopBtn').disabled = true; $('camOffBtn').disabled = true;
+      $('recState').textContent = label ?? 'ปิดกล้องแล้ว';
+      if (!heldBlob) setSt('st2', 'ปิดกล้องแล้ว', '');
+    }
+    $('step2').addEventListener('toggle', function () {
+      if (this.open && !cap) void openCamera();
+      if (!this.open && cap) { closeCamera(); logEvent('recorder', 'หุบกล่อง → ปิดกล้องให้อัตโนมัติ'); }
     });
+    $('camOffBtn').addEventListener('click', () => { closeCamera(); logEvent('recorder', 'ปิดกล้องแล้ว (ผู้ใช้กดเอง)'); });
     $('startBtn').addEventListener('click', () => {
       cap.start();
       $('startBtn').disabled = true; $('stopBtn').disabled = false;
+      $('uploadRow').hidden = true; heldBlob = null;
+      setSt('st2', 'กำลังอัด…', 'on');
     });
+    // หยุดอัด: ไม่มีเงื่อนไข ไม่แตะ network — ได้ไฟล์มาถือไว้ก่อนเสมอ
     $('stopBtn').addEventListener('click', async () => {
-      if (needPk($('recErr'))) return;
       $('stopBtn').disabled = true;
       try {
-        const blob = await cap.stop();
-        logEvent('recorder', `ได้ไฟล์แล้ว (${Math.round(blob.size / 1024)} KB) — เริ่มอัปโหลด`, 'อัปโหลด 3 จังหวะ: ขอ token → ส่งไฟล์ → ยืนยัน');
-        const up = createRecorder(cfg()).upload(blob, { orderRef: 'plain-demo-001' });
-        up.on('progress', (p) => { $('upSpan').textContent = `· upload ${Math.round(p.ratio * 100)}%`; });
+        heldBlob = await cap.stop();
+        $('clipSize').textContent = `${Math.round(heldBlob.size / 1024)} KB`;
+        $('uploadRow').hidden = false;
+        $('upSpan').textContent = '';
+        setSt('st2', 'ได้คลิปแล้ว — รออัปโหลด', 'on');
+        logEvent('recorder', `ได้ไฟล์แล้ว (${Math.round(heldBlob.size / 1024)} KB)`, 'ไฟล์อยู่ในหน้านี้ ยังไม่ขึ้นระบบ — กดอัปโหลดเมื่อพร้อม');
+        closeCamera('อัดจบแล้ว');
+      } catch (e) { $('recErr').textContent = fmtErr(e); setSt('st2', 'หยุดอัดไม่สำเร็จ', 'err'); }
+    });
+    $('reRecordBtn').addEventListener('click', () => {
+      heldBlob = null; $('uploadRow').hidden = true; $('videoIdRow').hidden = true; $('recErr').textContent = '';
+      void openCamera();
+    });
+    // อัปโหลด: ปุ่มของตัวเอง — เช็ค key ตรงนี้ที่เดียว พังแล้วกดซ้ำได้ ไฟล์ไม่หาย
+    $('uploadBtn').addEventListener('click', async () => {
+      if (!hasPk()) { $('recErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5) — คลิปยังอยู่ ไม่ต้องอัดใหม่'; return; }
+      $('recErr').textContent = ''; $('uploadBtn').disabled = true;
+      try {
+        // Mode B: ตัวตนมาจาก token ที่ server verify — ไม่ส่ง externalUserRef ซ้อน
+        const externalUserRef = window.PackikoModeB?.active ? undefined : ($('userRefInput').value.trim() || undefined);
+        const up = createRecorder(cfg()).upload(heldBlob, { orderRef: 'plain-demo-001', externalUserRef });
+        up.on('progress', (p) => { $('upSpan').textContent = `upload ${Math.round(p.ratio * 100)}%`; });
         up.on('state', (s) => logEvent('recorder', `upload state → ${s}`));
+        logEvent('recorder', 'เริ่มอัปโหลด', externalUserRef ? `ผูกกับผู้ใช้ ${externalUserRef} (externalUserRef)` : undefined);
         const { videoId } = await up.promise;
         $('videoId').textContent = videoId; $('videoIdRow').hidden = false;
         $('pbInput').value = videoId; // หยอดให้ขั้น 3 เลย
+        $('upSpan').textContent = '';
+        setSt('st2', 'อัปโหลดสำเร็จ', 'ok');
+        setSt('st3', 'มี videoId แล้ว — กดเปิดดู', 'on');
         logEvent('recorder', `🎉 ได้ videoId: ${videoId}`, 'ใส่ให้ในขั้น 3 แล้ว — กางกล่องต่อได้เลย');
-      } catch (e) { $('recErr').textContent = fmtErr(e); logEvent('recorder', `error: ${fmtErr(e)}`); }
+      } catch (e) {
+        $('recErr').textContent = fmtErr(e);
+        setSt('st2', 'อัปโหลดไม่สำเร็จ — กดซ้ำได้', 'err');
+        logEvent('recorder', `error: ${fmtErr(e)}`, 'ไฟล์ยังอยู่ในหน้า — แก้สาเหตุ (เช่น key/origin) แล้วกดอัปโหลดซ้ำ');
+      } finally { $('uploadBtn').disabled = false; }
     });
     $('copyBtn').addEventListener('click', () => navigator.clipboard.writeText($('videoId').textContent));
     window.addEventListener('pagehide', () => cap?.dispose());
 
-    // ── step 3: playback ───────────────────────────────────────────────────
-    $('loadBtn').addEventListener('click', async () => {
+    // ── step 3: playback — resolver ตอบ 3 แบบ ไม่โยน error ใส่คลิปที่แค่ยังไม่เสร็จ ──
+    async function resolvePlayback() {
       const id = $('pbInput').value.trim();
-      if (!id || needPk($('pbErr'))) return;
-      $('pbErr').textContent = ''; $('pbVideo').removeAttribute('src');
-      const player = createPlayer(cfg());
-      const off = player.on('state', (s) => { $('pbPhase').textContent = s; logEvent('playback', `state → ${s}`); });
-      $('pbPhase').textContent = 'resolving';
-      logEvent('playback', `resolvePlaybackUrl(${id})`, 'ยัง transcode ไม่เสร็จ = SDK รอให้');
+      if (!id) { $('pbErr').textContent = 'ใส่ videoId ก่อน'; return; }
+      if (!hasPk()) { $('pbErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5)'; return; }
+      $('pbErr').textContent = ''; $('pbRetryBtn').hidden = true; $('pbVideo').removeAttribute('src');
+      $('pbPhase').textContent = 'กำลังขอลิงก์…';
       try {
-        const { url } = await player.resolvePlaybackUrl(id);
-        $('pbVideo').src = url;
-        logEvent('playback', 'ได้ลิงก์เล่นแล้ว', 'ลิงก์มีอายุจำกัด — ขอใหม่จาก videoId เดิมได้เสมอ');
-      } catch (e) { $('pbErr').textContent = fmtErr(e); $('pbPhase').textContent = 'error'; }
-      finally { off(); }
-    });
+        const res = await createPlaybackResolver(cfg()).resolve(id);
+        if (res.status === 'ready') {
+          $('pbVideo').src = res.url;
+          $('pbPhase').textContent = 'พร้อมเล่น';
+          setSt('st3', 'เล่นได้แล้ว', 'ok');
+          logEvent('playback', 'ได้ลิงก์เล่นแล้ว', 'ลิงก์มีอายุจำกัด — ขอใหม่จาก videoId เดิมได้เสมอ');
+        } else if (res.status === 'processing') {
+          $('pbPhase').textContent = `กำลังประมวลผล (${res.state})`;
+          $('pbRetryBtn').hidden = false;
+          setSt('st3', 'กำลังประมวลผล', 'on');
+          logEvent('playback', `ยังประมวลผลอยู่ (${res.state})`, 'ปกติของคลิปที่เพิ่งอัด — รอสักครู่แล้วกดลองใหม่ ไม่ใช่ error');
+        } else {
+          $('pbPhase').textContent = 'เปิดไม่ได้';
+          $('pbErr').textContent = `${describeError(res.code, 'th')} (${res.code})`;
+          setSt('st3', 'เปิดไม่ได้', 'err');
+        }
+      } catch (e) { $('pbPhase').textContent = 'error'; $('pbErr').textContent = fmtErr(e); }
+    }
+    $('loadBtn').addEventListener('click', () => void resolvePlayback());
+    $('pbRetryBtn').addEventListener('click', () => void resolvePlayback());
 
     // ── step 4: durable queue + deferred attach ────────────────────────────
     // Simulated partner backend: a Set of "documents" + idempotent attach —
@@ -250,11 +367,12 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
           }
         }
         for (const id of [...lastStages.keys()]) if (!jobs.some((j) => j.id === id)) lastStages.delete(id);
+        setSt('st4', jobs.length ? `งานในคิว ${jobs.length}` : 'คิวว่าง', jobs.length ? 'on' : '');
         renderJobs(jobs);
       });
       queue.onOutcome((o) => {
-        if (o.status === 'bound') logEvent('queue', `🎉 ${o.context.orderRef} ผูกสำเร็จ → ${o.videoId}`, 'ครบวงจร — คลิปในเครื่องถูกลบแล้ว');
-        else logEvent('queue', `${o.context.orderRef} ไม่สำเร็จ (${o.code})`, 'job รออยู่ใน review');
+        if (o.status === 'bound') { setSt('st4', 'ผูกสำเร็จ', 'ok'); logEvent('queue', `🎉 ${o.context.orderRef} ผูกสำเร็จ → ${o.videoId}`, 'ครบวงจร — คลิปในเครื่องถูกลบแล้ว'); }
+        else logEvent('queue', `${o.context.orderRef} ไม่สำเร็จ (${describeError(o.code, 'th')})`, 'job รออยู่ใน review — แก้สาเหตุแล้วกด Retry');
       });
       return queue;
     }
@@ -263,7 +381,6 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       ul.replaceChildren();
       for (const job of jobs) {
         const li = document.createElement('li');
-        li.style.cssText = 'list-style:none;margin-bottom:8px';
         li.append(Object.assign(document.createElement('code'), { textContent: job.context.orderRef }), ` — ${job.stage} `);
         if (!docs.has(job.context.orderRef)) {
           const b = document.createElement('button');
@@ -292,7 +409,8 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       const file = e.target.files?.[0];
       if (!file) return;
       e.target.value = '';
-      if (needPk($('recErr'))) return;
+      if (!hasPk()) { $('qErr').textContent = 'กรอก pk_ ในขั้น 1 ก่อน (หรือ login ขั้น 5) — คิวต้องใช้ key ตอนอัปโหลด'; return; }
+      $('qErr').textContent = '';
       const orderRef = `plain-${Date.now()}`;
       await getQueue().enqueue({ blob: file, context: { orderRef }, orderRef });
       logEvent('queue', `enqueue(${orderRef})`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
@@ -304,6 +422,7 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
   <script type="module">
     import Keycloak from 'https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm';
     const $ = (id) => document.getElementById(id);
+    const setSt5 = (text, cls) => { const el = $('st5'); el.textContent = text; el.className = 'st' + (cls ? ' ' + cls : ''); };
     // ThaiCloud UAT demo defaults — same values as the React app (src/auth.ts).
     const DEFAULTS = {
       pk: 'pk_uat_example_41340973f06bfdfbd095a3e832aa93d4234eccefa845e94d',
@@ -328,6 +447,7 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       await kc.init({ pkceMethod: 'S256' }); // resumes the session on redirect return
     } catch (e) {
       $('mbState').textContent = 'ติดต่อ Keycloak ไม่ได้ — เช็ค URL/realm/client id';
+      setSt5('ติดต่อ IdP ไม่ได้', 'err');
       logEvent('modeB', `init error: ${e}`);
     }
 
@@ -340,9 +460,14 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
       };
       $('mbState').textContent = `Mode B active — sub: ${kc.tokenParsed?.sub ?? '?'}`;
       $('kcLogoutBtn').hidden = false;
+      setSt5('Mode B active', 'ok');
+      // Step-1 chip reflects the active key source (the classic script's syncStep1
+      // reads cfg(), which now resolves to the Mode B key).
+      window.dispatchEvent(new Event('packiko-modeb-changed'));
       logEvent('modeB', `login สำเร็จ (sub: ${kc.tokenParsed?.sub ?? '?'})`, 'ขั้น 2-4 ใช้ pk Mode B + X-User-Token แล้ว — เปิด DevTools → Network ดู header ได้');
     } else if (!$('mbState').textContent.startsWith('ติดต่อ')) {
       $('mbState').textContent = 'ยังไม่ login (ขั้น 1-4 ใช้ Mode A ตามเดิม)';
+      setSt5('ยังไม่ login', '');
       // The user edited the IdP fields and we reloaded to rebuild kc — continue.
       if (sessionStorage.getItem('plainModeBAutoLogin')) {
         sessionStorage.removeItem('plainModeBAutoLogin');
@@ -367,6 +492,14 @@ const config = { apiBaseUrl, publicKey,            // pk ตัวที่เ�
     $('kcLogoutBtn').addEventListener('click', () => {
       sessionStorage.removeItem('plainModeB');
       void kc.logout({ redirectUri: window.location.href });
+    });
+  </script>
+  <script>
+    // Keep the step-1 chip honest when Mode B activates (module script dispatches).
+    window.addEventListener('packiko-modeb-changed', () => {
+      const el = document.getElementById('st1');
+      el.textContent = 'ใช้ key จาก Mode B (ขั้น 5)';
+      el.className = 'st ok';
     });
   </script>
 </body>
