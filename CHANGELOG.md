@@ -4,6 +4,20 @@ Notable changes to this example. Format based on [Keep a Changelog 1.1.0](https:
 
 This repo has no version of its own (`package.json` is a private `0.0.0`) — entries are dated and reference the SDK version they track.
 
+## 2026-08-24 — step 4 tells its story (SDK 0.3.0)
+
+### Changed
+
+- **plain.html step 4 rewritten narrative-first** after user feedback that it read as jargon:
+  the warehouse scenario (clip recorded before the order document exists, flaky network)
+  opens the step, then the queue's three promises, then the code, then a numbered
+  try-it sequence — with the "refresh the page right here" moment promoted to an explicit
+  dare, and a clarification that the file picker is a demo stand-in (real integrations pass
+  the recorder's blob straight to `enqueue()`).
+- **"📼 ใช้คลิปจากขั้น 2" button**: the clip recorded in step 2 can now be enqueued directly,
+  connecting record → queue → wait-for-document → bind into one story (disabled until a clip
+  is held; the file picker stays as the alternative).
+
 ## 2026-08-24 — plain.html UX hardening from PO field-testing (SDK 0.3.0)
 
 ### Fixed

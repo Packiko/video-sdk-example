@@ -174,16 +174,33 @@ const res = await resolver.resolve(videoId);
 
     <details id="step4">
       <summary>ขั้น 4 · คิวถาวร + ผูกเอกสารทีหลัง <span class="st" id="st4">—</span></summary>
-      <p class="hint">enqueue() เก็บคลิปลงเครื่อง "ก่อน" ยิง network — refresh/ปิดแท็บ/เน็ตหลุด คลิปไม่หาย · job จะจอดรอจน "เอกสาร" ของระบบคุณพร้อม (releaseWhen) แล้วค่อยผูก (attach)</p>
+      <p class="hint">โจทย์จริงหน้างาน: พนักงานอัดคลิปแพ็คของเสร็จ แต่<b>ออเดอร์ในระบบยังบันทึกไม่เสร็จ</b>
+        — คลิปยังไม่มีที่ให้ผูก แถมเน็ตหน้าคลังก็ไม่นิ่ง ถ้าอัปโหลดตรงๆ แบบขั้น 2 คลิปหายกลางทางได้</p>
+      <p class="hint">คิวถาวรรับปาก 3 อย่าง:</p>
+      <ul class="pre hint">
+        <li>📦 <b>รับไฟล์ปุ๊บ เก็บลงเครื่องทันที</b> — ยังไม่ยิงเน็ตสักไบต์ · ปิดแท็บ/refresh/เน็ตหลุด คลิปไม่หาย</li>
+        <li>⬆ <b>อัปโหลดเบื้องหลัง + ลองซ้ำให้เอง</b> — ไฟล์ที่ขึ้นแล้วไม่อัปซ้ำ</li>
+        <li>🔗 <b>รอจนเอกสารของระบบคุณพร้อม แล้วค่อยผูกให้</b> — ระหว่างรอไม่นับเป็น fail แค่ "จอดรอ"</li>
+      </ul>
       <pre class="code">const queue = createUploadQueue(config, {
   releaseWhen: (job) => documentReady(job.context),    // false = จอดรอ ไม่ใช่ fail
   attach: (job) => bindClip(job.context, job.videoId), // ต้อง idempotent
 });
 await queue.enqueue({ blob, context, orderRef });      // durable ทันที
 await queue.nudge();                                   // เอกสารพร้อมแล้ว เช็คเดี๋ยวนี้</pre>
+      <p class="hint">ลองตามนี้ (demo จำลอง "เอกสาร" ไว้ในหน้าเว็บ — ของจริงคือระบบหลังบ้านของคุณ):</p>
+      <ol class="pre hint">
+        <li>กด "ใช้คลิปจากขั้น 2" หรือเลือก<b>ไฟล์วิดีโออะไรก็ได้ในเครื่อง</b>
+          (ของจริงโค้ดคุณส่ง blob จากตัวอัดเข้าคิวตรงๆ ไม่มีการเลือกไฟล์)
+          → ดูสถานะวิ่ง <code>queued → uploading → uploaded</code> แล้ว<b>จอดรอ</b> เพราะยังไม่มีเอกสาร</li>
+        <li>ใจกล้าๆ <b>refresh หน้าตรงนี้เลย</b> — job กลับมารอที่เดิม คลิปไม่หาย</li>
+        <li>กด <b>"สร้างเอกสาร (nudge)"</b> = แกล้งเป็นระบบคุณบันทึกออเดอร์เสร็จ
+          → คิวผูกคลิปทันที แล้วลบไฟล์ในเครื่อง 🎉</li>
+      </ol>
       <div class="row">
+        <button id="useClipBtn" disabled>📼 ใช้คลิปจากขั้น 2</button>
         <input type="file" id="fileInput" accept="video/*" style="width:auto" />
-        <span class="hint">← เลือกคลิป 1 ไฟล์ (ยังไม่มีเอกสาร → job จะจอดรอ)</span>
+        <span class="hint">← เริ่มข้อ 1 ที่นี่</span>
       </div>
       <p id="qErr" class="err"></p>
       <ul id="jobs"></ul>
@@ -300,7 +317,7 @@ await queue.nudge();                                   // เอกสารพ�
     $('startBtn').addEventListener('click', () => {
       cap.start();
       $('startBtn').disabled = true; $('stopBtn').disabled = false;
-      $('uploadRow').hidden = true; heldBlob = null;
+      $('uploadRow').hidden = true; heldBlob = null; $('useClipBtn').disabled = true;
       setSt('st2', 'กำลังอัด…', 'on');
     });
     // หยุดอัด: ไม่มีเงื่อนไข ไม่แตะ network — ได้ไฟล์มาถือไว้ก่อนเสมอ
@@ -310,6 +327,7 @@ await queue.nudge();                                   // เอกสารพ�
         heldBlob = await cap.stop();
         $('clipSize').textContent = `${Math.round(heldBlob.size / 1024)} KB`;
         $('uploadRow').hidden = false;
+        $('useClipBtn').disabled = false; // ขั้น 4 เอาคลิปนี้เข้าคิวได้แล้ว
         $('upSpan').textContent = '';
         setSt('st2', 'ได้คลิปแล้ว — รออัปโหลด', 'on');
         logEvent('recorder', `ได้ไฟล์แล้ว (${Math.round(heldBlob.size / 1024)} KB)`, 'ไฟล์อยู่ในหน้านี้ ยังไม่ขึ้นระบบ — กดอัปโหลดเมื่อพร้อม');
@@ -318,6 +336,7 @@ await queue.nudge();                                   // เอกสารพ�
     });
     $('reRecordBtn').addEventListener('click', () => {
       heldBlob = null; $('uploadRow').hidden = true; $('videoIdRow').hidden = true; $('recErr').textContent = '';
+      $('useClipBtn').disabled = true;
       void openCamera();
     });
     // อัปโหลด: ปุ่มของตัวเอง — เช็ค config ตรงนี้ที่เดียว พังแล้วกดซ้ำได้ ไฟล์ไม่หาย
@@ -453,16 +472,24 @@ await queue.nudge();                                   // เอกสารพ�
         ul.append(li);
       }
     }
-    $('fileInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      e.target.value = '';
+    async function enqueueClip(blob, sourceLabel) {
       const prob = configProblem();
       if (prob) { $('qErr').textContent = `${prob} — คิวต้องใช้ key ตอนอัปโหลด`; return; }
       $('qErr').textContent = '';
       const orderRef = `plain-${Date.now()}`;
-      await getQueue().enqueue({ blob: file, context: { orderRef }, orderRef });
-      logEvent('queue', `enqueue(${orderRef})`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
+      await getQueue().enqueue({ blob, context: { orderRef }, orderRef });
+      logEvent('queue', `enqueue(${orderRef})${sourceLabel}`, 'resolve แปลว่าคลิปอยู่ในเครื่องแล้ว — network มาทีหลัง');
+    }
+    $('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      await enqueueClip(file, '');
+    });
+    // ปุ่มเชื่อมเรื่องขั้น 2 → ขั้น 4: คลิปที่เพิ่งอัดเข้าคิวตรงๆ เหมือน flow จริง
+    $('useClipBtn').addEventListener('click', async () => {
+      if (!heldBlob) { $('qErr').textContent = 'ยังไม่มีคลิปจากขั้น 2 — อัดก่อน หรือเลือกไฟล์แทน'; return; }
+      await enqueueClip(heldBlob, ' — คลิปจากขั้น 2');
     });
   </script>
 
