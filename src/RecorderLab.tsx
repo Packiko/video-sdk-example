@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPlayer, createRecorder, describeError, PackikoError, type CaptureHandle } from '@packiko/video-sdk'
 import { useRecorder } from '@packiko/video-sdk/react'
-import { sdkConfig } from './sdk'
+import { authInitError, isAuthenticated, login, logout, modeB, modeBConfigured, subject } from './auth'
+import { modeAConfig, sdkConfig } from './sdk'
 
 type Mode = 'demo' | 'integration'
+type AuthChoice = 'a' | 'b'
 type DemoState = 'idle' | 'opening' | 'ready' | 'recording' | 'saving' | 'complete' | 'error'
+type RecorderConfig = { apiBaseUrl: string; publicKey: string; getUserToken?: () => Promise<string> }
 
-const demoRecorder = createRecorder(sdkConfig)
+const demoRecorder = createRecorder(modeAConfig)
 
 function messageFor(error: unknown): string {
   if (error instanceof PackikoError) return describeError(error.code, 'th')
@@ -118,14 +121,62 @@ function LocalDemo() {
   )
 }
 
-function IntegrationRecorder({ orderRef }: { orderRef: string }) {
-  const { previewStream, state, progress, videoId, error, start, stop, restart } = useRecorder({
-    ...sdkConfig,
-    orderRef,
-  })
+function SetupStep({ authChoice, onAuthChoice, orderRef, onOrderRef, configured, onConfigured }: {
+  authChoice: AuthChoice
+  onAuthChoice: (choice: AuthChoice) => void
+  orderRef: string
+  onOrderRef: (value: string) => void
+  configured: boolean
+  onConfigured: (value: boolean) => void
+}) {
+  const modeAReady = Boolean(modeAConfig.publicKey)
+  const modeBReady = modeBConfigured && isAuthenticated()
+  const ready = authChoice === 'a' ? modeAReady : modeBReady
+
+  return (
+    <section className="setup step-panel">
+      <div className="step-number">1</div>
+      <div className="section-title"><div><span>Setup</span><h2>เลือกวิธียืนยันตัวตน</h2></div>{configured && <strong className="status status--complete">ตั้งค่าแล้ว</strong>}</div>
+      <div className="auth-switch" aria-label="โหมดยืนยันตัวตน">
+        <button className={authChoice === 'a' ? 'active' : ''} onClick={() => { onAuthChoice('a'); onConfigured(false) }}>Mode A · Publishable key</button>
+        <button className={authChoice === 'b' ? 'active' : ''} onClick={() => { onAuthChoice('b'); onConfigured(false) }}>Mode B · OIDC login</button>
+      </div>
+
+      {authChoice === 'a' ? (
+        <div className="auth-summary">
+          <div><span>Video API</span><code>{modeAConfig.apiBaseUrl}</code></div>
+          <div><span>Publishable key</span><strong>{modeAReady ? 'พร้อมใช้งาน' : 'ยังไม่ได้ตั้งใน .env'}</strong></div>
+          <p>ใช้สำหรับระบบที่ยืนยันผู้ใช้เอง ต้องลงทะเบียน origin ที่เปิด Example นี้ไว้กับ key</p>
+        </div>
+      ) : (
+        <div className="auth-summary">
+          <div><span>Identity provider</span><code>{modeB.url} / {modeB.realm}</code></div>
+          <div><span>Client ID</span><code>{modeB.clientId}</code></div>
+          <div><span>สถานะ</span><strong>{isAuthenticated() ? `เข้าสู่ระบบแล้ว · ${subject()}` : authInitError ? 'เชื่อมต่อ IdP ไม่สำเร็จ' : 'ยังไม่ได้เข้าสู่ระบบ'}</strong></div>
+          <p>Client ID เป็นค่าของ public browser client ไม่ใช่ secret และ Video test key ต้องได้รับการตั้งค่าให้รองรับ issuer/JWKS นี้ก่อน</p>
+          <div className="actions">
+            {!isAuthenticated() && <button className="primary" onClick={login} disabled={!modeBConfigured || authInitError}>เข้าสู่ระบบ OIDC</button>}
+            {isAuthenticated() && <button className="secondary" onClick={logout}>ออกจากระบบ</button>}
+          </div>
+        </div>
+      )}
+
+      <label className="order-field">Order reference<input value={orderRef} onChange={(event) => { onOrderRef(event.target.value); onConfigured(false) }} disabled={configured} /></label>
+      <div className="actions">
+        {!configured && <button className="primary" onClick={() => onConfigured(true)} disabled={!ready || !orderRef.trim()}>ใช้ค่านี้และเริ่มทดลอง</button>}
+        {configured && <button className="secondary" onClick={() => onConfigured(false)}>แก้ไขการตั้งค่า</button>}
+      </div>
+      {!ready && authChoice === 'a' && <p className="error">เพิ่ม VITE_PACKIKO_PUBLIC_KEY ใน .env แล้วเปิด dev server ใหม่</p>}
+    </section>
+  )
+}
+
+function IntegrationRecorder({ orderRef, config }: { orderRef: string; config: RecorderConfig }) {
+  const { previewStream, state, progress, videoId, error, start, stop, restart } = useRecorder({ ...config, orderRef })
   const previewRef = useRef<HTMLVideoElement>(null)
   const [playbackUrl, setPlaybackUrl] = useState('')
   const [playbackError, setPlaybackError] = useState('')
+  const [linked, setLinked] = useState(false)
 
   useEffect(() => {
     if (previewRef.current) previewRef.current.srcObject = previewStream
@@ -135,7 +186,7 @@ function IntegrationRecorder({ orderRef }: { orderRef: string }) {
     if (!videoId) return
     setPlaybackError('')
     try {
-      const result = await createPlayer(sdkConfig).resolvePlaybackUrl(videoId)
+      const result = await createPlayer(config).resolvePlaybackUrl(videoId)
       setPlaybackUrl(result.url)
     } catch (cause) {
       setPlaybackError(messageFor(cause))
@@ -146,8 +197,9 @@ function IntegrationRecorder({ orderRef }: { orderRef: string }) {
     ? 'กำลังบันทึกหลักฐาน' : state === 'uploaded' ? 'บันทึกสำเร็จ' : state === 'error' ? 'ไม่สำเร็จ' : 'กล้องพร้อม'
 
   return (
-    <section className="recorder-panel">
-      <div className="section-title"><div><span>บัญชีทดสอบ</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">{label}</strong></div>
+    <section className="recorder-panel step-panel">
+      <div className="step-number">2</div>
+      <div className="section-title"><div><span>Record</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">{label}</strong></div>
       <div className="video-stage">
         {playbackUrl ? <video src={playbackUrl} autoPlay controls playsInline /> : <video ref={previewRef} autoPlay muted playsInline />}
       </div>
@@ -157,72 +209,86 @@ function IntegrationRecorder({ orderRef }: { orderRef: string }) {
         <button className="primary" onClick={() => void stop()} disabled={state !== 'recording'}>หยุดและบันทึก</button>
         {state === 'error' && <button className="secondary" onClick={restart}>ลองอีกครั้ง</button>}
         {videoId && <button className="secondary" onClick={() => void playVideo()}>เปิดวิดีโอ</button>}
+        {videoId && !linked && <button className="secondary" onClick={() => setLinked(true)}>จำลองผูกกับออเดอร์</button>}
       </div>
       {videoId && <p className="result">บันทึกสำเร็จ · videoId <code>{videoId}</code></p>}
+      {linked && <p className="result">ระบบ Partner บันทึก videoId กับออเดอร์ {orderRef} แล้ว</p>}
       {error && <p className="error" role="alert">{messageFor(error)}</p>}
       {playbackError && <p className="error" role="alert">{playbackError}</p>}
+      <p className="note">SDK ส่งคืน videoId แต่ไม่เขียนข้อมูลลงฐานข้อมูลออเดอร์ของ Partner จุดนี้ Partner เรียก backend ของตนเอง</p>
     </section>
   )
 }
 
-function IntegrationGuide() {
+function CapabilityGuide({ authChoice }: { authChoice: AuthChoice }) {
   return (
-    <section className="guide" aria-labelledby="integration-title">
-      <div className="section-title"><div><span>Quick start</span><h2 id="integration-title">เชื่อมต่อใน React</h2></div></div>
-      <ol>
-        <li><strong>ติดตั้งแพ็กเกจ</strong><code>pnpm add @packiko/video-sdk</code></li>
-        <li><strong>ใส่ค่าบัญชี</strong><code>VITE_PACKIKO_PUBLIC_KEY=pk_your_key</code></li>
-        <li><strong>เก็บ videoId</strong><span>เมื่อสถานะสำเร็จ ให้นำ ID ไปผูกกับเอกสารของระบบคุณ</span></li>
-      </ol>
-      <details>
-        <summary>ตัวอย่าง public API</summary>
-        <pre><code>{`const video = useRecorder({
+    <>
+      <section className="guide step-panel" aria-labelledby="integration-title">
+        <div className="step-number">3</div>
+        <div className="section-title"><div><span>Integrate</span><h2 id="integration-title">แบ่งหน้าที่ให้ชัดก่อนนำไปใช้</h2></div></div>
+        <div className="responsibility-grid">
+          <div><h3>SDK จัดการให้</h3><ul><li>เปิดกล้องและบันทึกวิดีโอ</li><li>ส่งหลักฐานและคืน videoId</li><li>รายงานสถานะและข้อผิดพลาด</li><li>เตรียมวิดีโอสำหรับ Playback</li></ul></div>
+          <div><h3>Partner ต้องทำ</h3><ul><li>เตรียม key, origin และการ login</li><li>ส่ง orderRef ที่ถูกต้อง</li><li>บันทึก videoId กับออเดอร์ของตน</li><li>กำหนดสิทธิ์และ UX ในระบบของตน</li></ul></div>
+        </div>
+        <details>
+          <summary>ตัวอย่าง public API สำหรับ {authChoice === 'b' ? 'Mode B' : 'Mode A'}</summary>
+          <pre><code>{`const video = useRecorder({
   apiBaseUrl: VIDEO_API_URL,
-  publicKey: VIDEO_PUBLIC_KEY,
+  publicKey: VIDEO_PUBLIC_KEY,${authChoice === 'b' ? '\n  getUserToken: () => auth.getAccessToken(),' : ''}
   orderRef: order.id,
 })
 
 video.start()
 await video.stop()
 
-// เมื่อ video.state === 'uploaded'
+// เมื่อบันทึกสำเร็จ
 await partnerApi.saveVideoId(order.id, video.videoId)`}</code></pre>
-      </details>
-      <p className="note">SDK จัดการงานภายในของบริการวิดีโอ ตัวอย่างนี้แสดงเฉพาะ contract ที่แอป Partner ต้องเรียกและผลลัพธ์ที่ต้องเก็บ</p>
-    </section>
+        </details>
+      </section>
+
+      <section className="guarantees">
+        <div><span className="availability availability--ready">พร้อมใน SDK ปัจจุบัน</span><strong>บันทึก ส่งหลักฐาน รับ videoId และ Playback</strong><p>ทดสอบได้เมื่อ key, origin และบัญชีผู้ใช้พร้อม</p></div>
+        <div><span className="availability availability--planned">รอ SDK รุ่นถัดไป</span><strong>ออกจากหน้า/ออฟไลน์โดยงานไม่สะดุด</strong><p>ยังไม่ควรประกาศเป็น production guarantee</p></div>
+        <div><span className="availability availability--planned">รอการออกแบบเพิ่มเติม</span><strong>กู้วิดีโอเมื่อ browser หรือเครื่องดับกลางบันทึก</strong><p>ยังไม่อยู่ใน guarantee ปัจจุบัน</p></div>
+      </section>
+    </>
   )
 }
 
 export default function RecorderLab() {
-  const [mode, setMode] = useState<Mode>('demo')
+  const [mode, setMode] = useState<Mode>(isAuthenticated() ? 'integration' : 'demo')
+  const [authChoice, setAuthChoice] = useState<AuthChoice>(isAuthenticated() ? 'b' : 'a')
   const [orderRef, setOrderRef] = useState('partner-order-001')
-  const hasKey = Boolean(sdkConfig.publicKey)
+  const [configured, setConfigured] = useState(false)
+  const config: RecorderConfig = authChoice === 'b'
+    ? { apiBaseUrl: sdkConfig.apiBaseUrl, publicKey: sdkConfig.publicKey, getUserToken: sdkConfig.getUserToken }
+    : modeAConfig
 
   return (
     <>
       <header className="hero">
-        <div><span>Partner example</span><h1>เพิ่มวิดีโอหลักฐานในระบบของคุณ</h1><p>ทดลองกล้องก่อน แล้วใช้ public API ชุดสั้นเพื่อรับ videoId กลับไปผูกกับเอกสาร</p></div>
+        <div><span>Partner guided sandbox</span><h1>ทดลอง Video SDK แบบทีละขั้น</h1><p>ตั้งค่าบัญชี บันทึกหลักฐาน รับ videoId และลอง Playback โดยไม่ต้องรู้รายละเอียดการทำงานภายใน</p></div>
         <div className="mode-switch" aria-label="เลือกโหมด">
           <button className={mode === 'demo' ? 'active' : ''} onClick={() => setMode('demo')}>ทดลองกล้อง</button>
-          <button className={mode === 'integration' ? 'active' : ''} onClick={() => setMode('integration')}>เชื่อมบัญชีทดสอบ</button>
+          <button className={mode === 'integration' ? 'active' : ''} onClick={() => setMode('integration')}>Guided integration</button>
         </div>
       </header>
 
       {mode === 'demo' ? <LocalDemo /> : (
         <>
-          {hasKey ? (
-            <>
-              <label className="order-field">Order reference<input value={orderRef} onChange={(event) => setOrderRef(event.target.value)} /></label>
-              <IntegrationRecorder orderRef={orderRef} />
-            </>
-          ) : (
-            <section className="setup">
-              <span>ต้องตั้งค่าก่อน</span><h2>เพิ่ม publishable key ของบัญชีทดสอบ</h2>
-              <pre><code>{`VITE_PACKIKO_API_BASE_URL=https://video-uat.packiko.com\nVITE_PACKIKO_PUBLIC_KEY=pk_your_key`}</code></pre>
-              <p>จากนั้นเปิด dev server ใหม่ และตรวจว่า origin ปัจจุบันได้รับอนุญาตสำหรับ key นี้</p>
+          <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} />
+          {configured && <IntegrationRecorder key={`${authChoice}:${orderRef}`} orderRef={orderRef} config={config} />}
+          {!configured && (
+            <section className="recorder-panel step-panel locked-step" aria-label="ขั้นบันทึกวิดีโอ รอการตั้งค่า">
+              <div className="step-number">2</div>
+              <div className="section-title">
+                <div><span>Record</span><h2>บันทึกหลักฐานวิดีโอ</h2></div>
+                <strong className="status">รอขั้นที่ 1</strong>
+              </div>
+              <p className="note">ตั้งค่าบัญชีและ Order reference ให้พร้อมก่อนเปิดกล้องทดสอบ</p>
             </section>
           )}
-          <IntegrationGuide />
+          <CapabilityGuide authChoice={authChoice} />
         </>
       )}
     </>

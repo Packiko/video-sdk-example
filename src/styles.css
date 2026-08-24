@@ -25,6 +25,8 @@ code, pre { font-family: "Cascadia Code", Consolas, monospace; }
 .mode-switch button.active { background: #fff; color: #075f99; box-shadow: 0 1px 2px rgb(28 55 77 / 16%); font-weight: 700; }
 
 .recorder-panel, .setup, .guide { margin-top: 16px; padding: 18px; border: 1px solid #d2dde6; border-radius: 8px; background: #fff; }
+.step-panel { position: relative; padding-left: 62px; }
+.step-number { position: absolute; top: 18px; left: 18px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e4f0f8; color: #075f99; font-size: 13px; font-weight: 800; }
 .section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .section-title h2, .setup h2 { margin: 3px 0 0; font-size: 20px; letter-spacing: 0; }
 .status { padding: 5px 8px; border-radius: 5px; background: #e8eef3; color: #53677a; font-size: 12px; }
@@ -48,24 +50,44 @@ progress { width: 100%; height: 8px; margin-top: 12px; accent-color: #0769a7; }
 
 .order-field { display: grid; gap: 6px; margin-top: 16px; color: #526578; font-size: 13px; font-weight: 700; }
 .order-field input { min-height: 42px; padding: 8px 10px; border: 1px solid #becbd6; border-radius: 6px; color: #18283b; }
+.auth-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.auth-switch button { min-height: 42px; padding: 0 12px; border: 1px solid #c2cfda; border-radius: 6px; background: #fff; color: #53677a; cursor: pointer; }
+.auth-switch button.active { border-color: #2681b8; background: #e9f3f9; color: #075f99; font-weight: 700; }
+.auth-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid #e0e7ed; border-radius: 6px; background: #fafcfd; }
+.auth-summary > div { display: grid; gap: 4px; min-width: 0; }
+.auth-summary span { color: #6a7b8d; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.auth-summary code, .auth-summary strong { overflow-wrap: anywhere; font-size: 13px; }
+.auth-summary p, .auth-summary .actions { grid-column: 1 / -1; margin: 0; color: #627487; font-size: 13px; line-height: 1.5; }
 .setup p { color: #617386; line-height: 1.55; }
 .setup pre, .guide pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font-size: 13px; line-height: 1.55; }
-.guide ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0 0 16px; padding: 0; overflow: hidden; border: 1px solid #dce4ea; border-radius: 6px; background: #dce4ea; list-style: none; counter-reset: guide-step; }
-.guide li { display: grid; align-content: start; gap: 6px; min-height: 104px; padding: 12px; background: #fafcfd; counter-increment: guide-step; }
-.guide li strong::before { content: counter(guide-step) ". "; color: #0a659f; }
-.guide li code, .guide li span { overflow-wrap: anywhere; color: #607285; font-size: 12px; }
 .guide details { border-top: 1px solid #e2e9ee; }
 .guide summary { padding: 14px 0 0; color: #174968; cursor: pointer; font-weight: 700; }
+.responsibility-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; border: 1px solid #dce4ea; border-radius: 6px; background: #dce4ea; }
+.responsibility-grid > div { padding: 14px; background: #fafcfd; }
+.responsibility-grid h3 { margin: 0 0 8px; font-size: 15px; }
+.responsibility-grid ul { margin: 0; padding-left: 20px; color: #5f7184; font-size: 13px; line-height: 1.65; }
+.guarantees { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+.guarantees > div { display: grid; align-content: start; gap: 8px; min-height: 142px; padding: 14px; border: 1px solid #d2dde6; border-radius: 8px; background: #fff; }
+.guarantees strong { font-size: 14px; line-height: 1.4; }
+.guarantees p { margin: 0; color: #66788a; font-size: 12px; line-height: 1.5; }
+.availability { width: fit-content; padding: 4px 7px; border-radius: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.availability--ready { background: #e3f3ea; color: #176a45; }
+.availability--planned { background: #f8eed6; color: #7d5b0a; }
+.locked-step { background: #f7f9fb; }
 
 @media (max-width: 720px) {
   .app-shell { width: min(100% - 24px, 960px); padding-top: 16px; }
   .hero { align-items: stretch; flex-direction: column; gap: 18px; }
   .hero h1 { font-size: 28px; }
   .mode-switch { width: 100%; flex-basis: auto; }
-  .guide ol { grid-template-columns: 1fr; }
+  .responsibility-grid, .guarantees { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 440px) {
   .recorder-panel, .setup, .guide { padding: 14px; }
+  .step-panel { padding-top: 54px; padding-left: 14px; }
+  .step-number { top: 14px; left: 14px; }
+  .auth-switch, .auth-summary { grid-template-columns: 1fr; }
+  .auth-summary p, .auth-summary .actions { grid-column: 1; }
   .actions button { width: 100%; }
 }
