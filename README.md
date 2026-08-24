@@ -10,11 +10,20 @@ pnpm install
 pnpm dev
 ```
 
-The first screen has two modes:
+The application has four visible workspaces:
 
 - **Camera demo:** record and play a local clip without a key or API request.
-- **Guided integration:** choose authentication, record with a test account, receive a
-  `videoId`, simulate attaching it to an order, and try playback.
+- **Record & Upload:** enter test configuration in the page, record, upload, and receive a
+  `videoId`.
+- **Playback:** paste any `videoId` or use the ID returned by Record & Upload, then play it.
+- **Implementation:** read the complete public-API path for config, record, Partner attach,
+  and playback.
+
+The React source for those flows is deliberately small and directly reusable:
+
+- [`src/RecorderLab.tsx`](src/RecorderLab.tsx) — Mode A/Mode B setup and record/upload.
+- [`src/PlaybackLab.tsx`](src/PlaybackLab.tsx) — standalone playback by `videoId`.
+- [`src/ImplementationGuide.tsx`](src/ImplementationGuide.tsx) — copyable integration path.
 
 ## Configure a test account
 
@@ -25,7 +34,24 @@ VITE_PACKIKO_API_BASE_URL=https://video-uat.packiko.com
 VITE_PACKIKO_PUBLIC_KEY=pk_your_key
 ```
 
-The page origin must be registered for that key. Restart the dev server after changing `.env`.
+The page origin must be registered for that key. Values from `.env` prefill the page, but a
+publishable test key can also be entered directly in **Record & Upload**.
+
+### Mode A does not use an OIDC Client ID
+
+Mode A uses these values:
+
+| Value | Purpose |
+|---|---|
+| `apiBaseUrl` | Video API environment |
+| `publicKey` | Identifies the Partner's Video account and registered origin |
+| `orderRef` | Partner order/document reference stored with the video |
+| `externalUserRef` | Optional Partner user/operator ID, attested by the Partner |
+| `merchantId` | Optional merchant identifier |
+
+There is no `clientId` field in the Mode A SDK contract. If the Partner calls its internal
+operator identifier a "client ID", map it to `externalUserRef` only when it identifies the
+current user. An OIDC `clientId` belongs to Mode B.
 
 ### Optional Mode B (OIDC)
 
@@ -50,6 +76,10 @@ const video = useRecorder({
   apiBaseUrl: VIDEO_API_URL,
   publicKey: VIDEO_PUBLIC_KEY,
   orderRef: order.id,
+  upload: {
+    externalUserRef: currentUser.id, // Mode A only
+    merchantId: order.merchantId,    // optional
+  },
 })
 
 video.start()
@@ -69,6 +99,18 @@ For Mode B, add the Partner's existing token provider:
 getUserToken: () => auth.getAccessToken()
 ```
 
+## Partner attach
+
+The SDK returns `videoId`; it does not write the Partner's order database:
+
+```ts
+if (video.state === 'uploaded' && video.videoId) {
+  await partnerApi.attachVideo(order.id, { videoId: video.videoId })
+}
+```
+
+Make this backend operation idempotent, for example with a unique `(orderId, videoId)` key.
+
 ## Playback
 
 ```ts
@@ -76,10 +118,13 @@ import { createPlayer } from '@packiko/video-sdk'
 
 const player = createPlayer({ apiBaseUrl: VIDEO_API_URL, publicKey: VIDEO_PUBLIC_KEY })
 const { url } = await player.resolvePlaybackUrl(videoId)
+
+return <video src={url} controls playsInline />
 ```
 
 Use the returned URL in a standard `<video controls>` element. Request a fresh URL from the
-same `videoId` instead of storing the URL.
+same `videoId` instead of storing the URL. The **Playback** workspace is a live version of this
+code and accepts a manually pasted ID, so recording a new clip is not required for every test.
 
 ## Scope
 
@@ -102,8 +147,8 @@ Available in the current SDK for the active-page flow:
 - open playback
 
 Do not yet promise seamless continuation after route exit/offline, or recovery from a browser
-or device failure during active recording. Those capabilities require later SDK work; the
-Guided Sandbox labels them as planned rather than presenting them as current behavior.
+or device failure during active recording. Those capabilities require later SDK work and are
+not represented as current behavior in this Example.
 
 ## Vanilla JavaScript
 

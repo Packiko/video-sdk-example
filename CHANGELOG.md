@@ -10,3 +10,8 @@
   playback, and a clear SDK-versus-Partner responsibility split.
 - Added product-level guarantee labels so planned resilience is visible without exposing
   implementation design.
+- Restored a complete Partner learning path with separate Record & Upload, Playback, and
+  Implementation workspaces.
+- Added editable Mode A test values and clarified that OIDC client ID is Mode B-only;
+  Mode A uses publishable key plus optional `externalUserRef`.
+- Added standalone playback-by-`videoId` and complete public-API examples for Partner attach.

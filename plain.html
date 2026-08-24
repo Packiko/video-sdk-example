@@ -25,6 +25,7 @@
     .status { font-size: 13px; font-weight: 700 }
     .error { color: #a62538 }
     .result { color: #176a45 }
+    .info { padding: 10px 12px; border-left: 3px solid #1681b7; background: #edf6fa; color: #526f82 }
     pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font: 13px/1.55 Consolas, monospace }
     @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } }
   </style>
@@ -49,10 +50,13 @@
     </section>
 
     <section>
-      <h2>Test-account recording</h2>
+      <h2>Mode A · Record & Upload</h2>
+      <p class="info"><b>Mode A ไม่มี OIDC Client ID</b> — ใช้ publishable key ระบุบัญชี Video และส่งรหัสผู้ใช้ของ Partner เป็น externalUserRef ได้</p>
       <label>Video API URL<input id="apiUrl" value="https://video-uat.packiko.com" /></label>
       <label>Publishable key<input id="publicKey" placeholder="pk_your_key" /></label>
       <label>Order reference<input id="orderRef" value="partner-order-001" /></label>
+      <label>External user reference<input id="externalUserRef" value="partner-user-001" placeholder="optional" /></label>
+      <label>Merchant ID<input id="merchantId" placeholder="optional" /></label>
       <video id="liveVideo" autoplay muted playsinline></video>
       <div class="row">
         <button class="primary" id="liveOpen">Open camera</button>
@@ -66,15 +70,33 @@
     </section>
 
     <section>
+      <h2>Playback Lab</h2>
+      <p>ใส่ videoId ที่มีอยู่แล้ว หรือใช้ ID ที่ได้จาก Record & Upload โดยไม่ต้องอัดคลิปใหม่ทุกครั้ง</p>
+      <label>Video ID<input id="playbackVideoId" placeholder="videoId" /></label>
+      <div class="row"><button class="primary" id="playbackPlay">Open playback</button></div>
+      <video id="playbackVideo" controls playsinline></video>
+      <p class="status" id="playbackStatus">Ready</p>
+      <p class="error" id="playbackError"></p>
+    </section>
+
+    <section>
       <h2>Public API</h2>
       <pre><code>const recorder = createRecorder({ apiBaseUrl, publicKey })
 const capture = await recorder.capture()
 capture.start()
 
 const clip = await capture.stop()
-const { videoId } = await recorder.upload(clip, { orderRef }).promise
+const { videoId } = await recorder.upload(clip, {
+  orderRef,
+  externalUserRef,
+  merchantId,
+}).promise
 
-await partnerApi.saveVideoId(orderRef, videoId)</code></pre>
+await partnerApi.saveVideoId(orderRef, videoId)
+
+const { url } = await createPlayer({ apiBaseUrl, publicKey })
+  .resolvePlaybackUrl(videoId)
+video.src = url</code></pre>
       <p>The SDK is treated as a black box. Store the returned <code>videoId</code> with your document.</p>
     </section>
   </main>
@@ -150,11 +172,17 @@ await partnerApi.saveVideoId(orderRef, videoId)</code></pre>
       liveRecorder = createRecorder({ apiBaseUrl: byId('apiUrl').value.trim(), publicKey });
       return liveRecorder;
     }, async (clip) => {
-      const result = await liveRecorder.upload(clip, { orderRef: byId('orderRef').value.trim() }).promise;
+      const upload = {
+        orderRef: byId('orderRef').value.trim(),
+        ...(byId('externalUserRef').value.trim() ? { externalUserRef: byId('externalUserRef').value.trim() } : {}),
+        ...(byId('merchantId').value.trim() ? { merchantId: byId('merchantId').value.trim() } : {}),
+      };
+      const result = await liveRecorder.upload(clip, upload).promise;
       videoId = result.videoId;
       byId('liveResult').textContent = 'Saved · videoId ' + videoId;
       byId('liveStatus').textContent = 'Complete';
       byId('livePlay').disabled = false;
+      byId('playbackVideoId').value = videoId;
     });
 
     byId('livePlay').addEventListener('click', async () => {
@@ -169,6 +197,26 @@ await partnerApi.saveVideoId(orderRef, videoId)</code></pre>
         await video.play().catch(() => undefined);
       } catch (error) {
         byId('liveError').textContent = errorText(error);
+      }
+    });
+
+    byId('playbackPlay').addEventListener('click', async () => {
+      const id = byId('playbackVideoId').value.trim();
+      byId('playbackError').textContent = '';
+      if (!id) {
+        byId('playbackError').textContent = 'Enter a videoId first';
+        return;
+      }
+      try {
+        byId('playbackStatus').textContent = 'Preparing playback';
+        const config = { apiBaseUrl: byId('apiUrl').value.trim(), publicKey: byId('publicKey').value.trim() };
+        const result = await createPlayer(config).resolvePlaybackUrl(id);
+        byId('playbackVideo').src = result.url;
+        byId('playbackStatus').textContent = 'Ready to play';
+        await byId('playbackVideo').play().catch(() => undefined);
+      } catch (error) {
+        byId('playbackStatus').textContent = 'Playback failed';
+        byId('playbackError').textContent = errorText(error);
       }
     });
 
