@@ -62,12 +62,34 @@
     code { background: var(--bg); border-radius: 5px; padding: 1px 6px; font-size: .9em }
     ul.pre { margin: 6px 0; padding-left: 20px }
     ul.pre li { margin: 3px 0 }
+    .quick-lab { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 14px 0 }
+    .quick-lab h2 { margin: 0 0 4px; font-size: 19px }
+    .quick-lab video { aspect-ratio: 16 / 9; object-fit: contain; margin-top: 12px }
   </style>
 </head>
 <body>
   <main>
     <h1>Packiko Video SDK — vanilla walkthrough</h1>
     <p class="hint">ทีละขั้นด้วย JavaScript ล้วน ไม่ต้องมี bundler/React — เปิดกล่องไล่จากบนลงล่าง แล้วดูผลจริงใน Event log ล่างสุด</p>
+
+    <div class="card warn">
+      <b>ต้องการลองกล้องและเล่นคลิปทันทีโดยยังไม่มี key?</b>
+      <span class="hint">เปิด <a href="/">Recorder Lab</a> แล้วเลือก “Demo บนเครื่อง” หน้านี้เป็นคู่มือ integration แบบ vanilla สำหรับขั้นอัปโหลดจริง</span>
+    </div>
+
+    <section class="quick-lab" aria-labelledby="quick-title">
+      <h2 id="quick-title">Quick camera test</h2>
+      <p class="hint">อัดและเล่น WebM ในเบราว์เซอร์ ไม่ใช้ key, API หรือ network</p>
+      <video id="quickVideo" autoplay muted playsinline></video>
+      <div class="row">
+        <button class="go" id="quickOpen">เปิดกล้อง</button>
+        <button class="go" id="quickStart" disabled>เริ่มอัด</button>
+        <button class="go" id="quickStop" disabled>หยุดและเล่นคลิป</button>
+        <button id="quickDownload" disabled>ดาวน์โหลด WebM</button>
+      </div>
+      <p class="hint">สถานะ: <b id="quickStatus">พร้อมเริ่ม</b></p>
+      <p class="err" id="quickError"></p>
+    </section>
 
     <div class="card warn">
       <b>⚠ ก่อนเริ่ม — 3 อย่างที่ต้องมี ไม่งั้นจะติดตั้งแต่ขั้นอัปโหลด</b>
@@ -214,6 +236,79 @@ await queue.nudge();                                   // เอกสารพ�
     const $ = (id) => document.getElementById(id);
     // ทุก error ผ่าน describeError → ภาษาคน (โค้ดดิบวงเล็บท้ายไว้แจ้งทีม support)
     const fmtErr = (e) => e instanceof PackikoError ? `${describeError(e.code, 'th')} (${e.code})` : String(e);
+
+    // ── quick camera test: keyless, local-only, immediately playable ───────
+    let quickCapture = null;
+    let quickBlob = null;
+    let quickBlobUrl = '';
+    const quickRecorder = createRecorder({ apiBaseUrl: 'https://video-uat.packiko.com', publicKey: '' });
+    const setQuickStatus = (value) => { $('quickStatus').textContent = value; };
+    const clearQuickUrl = () => {
+      if (quickBlobUrl) URL.revokeObjectURL(quickBlobUrl);
+      quickBlobUrl = '';
+      quickBlob = null;
+      $('quickDownload').disabled = true;
+    };
+    $('quickOpen').addEventListener('click', async () => {
+      $('quickError').textContent = '';
+      clearQuickUrl();
+      setQuickStatus('กำลังขอสิทธิ์กล้อง');
+      try {
+        quickCapture?.dispose();
+        quickCapture = await quickRecorder.capture();
+        $('quickVideo').removeAttribute('src');
+        $('quickVideo').controls = false;
+        $('quickVideo').muted = true;
+        $('quickVideo').srcObject = quickCapture.previewStream;
+        $('quickStart').disabled = false;
+        $('quickStop').disabled = true;
+        setQuickStatus('กล้องพร้อม');
+      } catch (e) {
+        $('quickError').textContent = fmtErr(e);
+        setQuickStatus('เปิดกล้องไม่ได้');
+      }
+    });
+    $('quickStart').addEventListener('click', () => {
+      if (!quickCapture || quickCapture.state !== 'idle') return;
+      quickCapture.start();
+      $('quickStart').disabled = true;
+      $('quickStop').disabled = false;
+      setQuickStatus('กำลังอัด');
+    });
+    $('quickStop').addEventListener('click', async () => {
+      if (!quickCapture || quickCapture.state !== 'recording') return;
+      $('quickStop').disabled = true;
+      setQuickStatus('กำลังสร้างไฟล์');
+      try {
+        quickBlob = await quickCapture.stop();
+        quickCapture.dispose();
+        quickCapture = null;
+        quickBlobUrl = URL.createObjectURL(quickBlob);
+        const video = $('quickVideo');
+        video.srcObject = null;
+        video.src = quickBlobUrl;
+        video.controls = true;
+        video.muted = false;
+        $('quickDownload').disabled = false;
+        setQuickStatus('คลิปพร้อมเล่น');
+        void video.play().catch(() => undefined);
+      } catch (e) {
+        $('quickError').textContent = fmtErr(e);
+        setQuickStatus('สร้างคลิปไม่สำเร็จ');
+      }
+    });
+    $('quickDownload').addEventListener('click', () => {
+      if (!quickBlob || !quickBlobUrl) return;
+      const anchor = document.createElement('a');
+      anchor.href = quickBlobUrl;
+      anchor.download = `packiko-video-vanilla-${Date.now()}.webm`;
+      anchor.click();
+    });
+    window.addEventListener('pagehide', () => {
+      quickCapture?.dispose();
+      quickCapture = null;
+      clearQuickUrl();
+    });
 
     // ── step 1: the auth-mode choice — everything below hangs off it ───────
     // No default on purpose: the question IS the point of this page. The choice

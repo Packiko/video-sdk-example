@@ -6,12 +6,32 @@ Two integration paths from one repo:
 - **Path A — React (npm):** `@packiko/video-sdk` via GitHub Packages, bundled with Vite. The production path is `src/ProductionRecorder.tsx` + `src/queue.ts`.
 - **Path B — vanilla (`<script>` CDN):** zero-build, `window.PackikoVideo` from R2. See `plain.html`.
 
+## Start here: Recorder Lab
+
+Run the React app and open **Recorder Lab**, the default first screen:
+
+```bash
+pnpm dev
+```
+
+Choose one of two explicit modes:
+
+- **Demo on this device** needs no publishable key and makes no API request. Open the camera,
+  record a short clip, stop, play the finalized WebM immediately, and optionally download it.
+  This proves only the browser camera/record/playback lifecycle.
+- **Connect real UAT** checks camera support, secure context, API URL, publishable key, and the
+  origin-registration requirement before showing the durable queue workflow. This mode proves
+  upload and Partner attach only when a registered origin and valid Partner key are configured.
+
+The first screen therefore works after installation even before ThaiCloud provisions access,
+while keeping local demonstration and real integration results visibly separate.
+
 Both paths are **interactive walkthroughs** (built from real partner feedback — the raw
 examples were hard to follow):
 
-- The React app opens in **Learn** — a 6-step guided wizard (setup → record+durable enqueue →
+- The React app opens in **Recorder Lab**. The secondary **Integration guide** is a 6-step wizard (setup → record+durable enqueue →
   recovery queue → deferred attach → playback → failure lab), each step showing the exact
-  code, a plain-Thai explanation, and a live widget running it for real. **🎮 Playground**
+  code, a plain-Thai explanation, and a live widget. **Advanced tools**
   is free-play: the demos beside a live **event log** narrating every SDK call and state
   change with hints.
 - `plain.html` is the same walkthrough in vanilla JS: numbered accordion steps with code +

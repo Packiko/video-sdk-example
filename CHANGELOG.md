@@ -8,6 +8,10 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
 
 ### Added
 
+- Recorder Lab is now the first React screen, with a keyless local mode that records, plays,
+  and downloads a finalized WebM without contacting the Video API.
+- UAT preflight makes camera support, secure context, API URL, publishable key, and origin
+  allowlist responsibility visible before the durable integration controls appear.
 - `ProductionRecorder` connects camera capture directly to the app-wide durable queue:
   stop, finalize the Blob, persist it locally, then release the camera while upload and
   Partner attachment continue independently of the screen.
@@ -18,6 +22,8 @@ This repo has no version of its own (`package.json` is a private `0.0.0`) — en
 
 ### Changed
 
+- Learn, advanced queue/playback tools, and authentication are secondary navigation so the
+  first-time Partner has one obvious working path.
 - React Learn, Playground, README, and the vanilla walkthrough now lead with the same
   production path. The former `useRecorder` flow remains clearly labeled as a minimal
   direct-upload demo.

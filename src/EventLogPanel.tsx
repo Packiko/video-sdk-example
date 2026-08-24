@@ -6,16 +6,16 @@ import { getLog, subscribeLog } from './eventLog'
 export default function EventLogPanel() {
   const entries = useSyncExternalStore(subscribeLog, getLog, getLog)
   return (
-    <aside style={{ border: '1px solid #ccc', borderRadius: 8, padding: 12, fontSize: 13, maxHeight: 480, overflowY: 'auto' }}>
-      <strong>Event log</strong>
-      {entries.length === 0 && <p style={{ color: '#888' }}>(ยังไม่มี event — ลองกดปุ่มฝั่งซ้ายดูครับ)</p>}
-      <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
+    <aside className="event-panel">
+      <strong>ลำดับเหตุการณ์</strong>
+      {entries.length === 0 && <p className="empty-copy">ยังไม่มีเหตุการณ์ เริ่มจากเปิดกล้องทางซ้าย</p>}
+      <ul>
         {[...entries].reverse().map((e, i) => (
-          <li key={entries.length - i} style={{ marginBottom: 8, borderBottom: '1px solid #eee', paddingBottom: 6 }}>
-            <span style={{ color: '#888' }}>{e.at}</span>{' '}
-            <code style={{ background: '#f4f4f4', padding: '0 4px', borderRadius: 4 }}>{e.source}</code>{' '}
+          <li key={entries.length - i}>
+            <time>{e.at}</time>{' '}
+            <code>{e.source}</code>{' '}
             {e.message}
-            {e.hint && <div style={{ color: '#666', marginTop: 2 }}>💡 {e.hint}</div>}
+            {e.hint && <div className="event-hint">{e.hint}</div>}
           </li>
         ))}
       </ul>
