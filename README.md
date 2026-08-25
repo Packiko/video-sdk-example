@@ -25,6 +25,11 @@ The React source for those flows is deliberately small and directly reusable:
 - [`src/PlaybackLab.tsx`](src/PlaybackLab.tsx) — standalone playback by `videoId`.
 - [`src/ImplementationGuide.tsx`](src/ImplementationGuide.tsx) — copyable integration path.
 
+Every workspace shares an **Activity Log**. It records public lifecycle events, SDK error
+codes, the current page origin, and the selected API environment. It intentionally never logs
+publishable keys, user tokens, upload URLs, or signed playback URLs. Use **Copy log** when
+sending a reproducible failure to support.
+
 ## Configure a test account
 
 Create `.env`:
@@ -36,6 +41,10 @@ VITE_PACKIKO_PUBLIC_KEY=pk_your_key
 
 The page origin must be registered for that key. Values from `.env` prefill the page, but a
 publishable test key can also be entered directly in **Record & Upload**.
+
+Origin matching is exact: `http://127.0.0.1:5401` and `http://localhost:5401` are different
+origins. A `network_error` or `origin_not_allowed` entry includes the current origin so it can
+be compared with the allowlist.
 
 ### Mode A does not use an OIDC Client ID
 

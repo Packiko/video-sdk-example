@@ -15,3 +15,5 @@
 - Added editable Mode A test values and clarified that OIDC client ID is Mode B-only;
   Mode A uses publishable key plus optional `externalUserRef`.
 - Added standalone playback-by-`videoId` and complete public-API examples for Partner attach.
+- Added a sanitized Activity Log to React and Vanilla examples with lifecycle events, SDK
+  error codes, exact-origin diagnostics, copy, and clear actions.

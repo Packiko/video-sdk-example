@@ -26,6 +26,11 @@
     .error { color: #a62538 }
     .result { color: #176a45 }
     .info { padding: 10px 12px; border-left: 3px solid #1681b7; background: #edf6fa; color: #526f82 }
+    .log { background: #0c1925; color: #dbe7f0 }
+    .log p { color: #8da4b6 }
+    .log-list { max-height: 240px; overflow: auto; border-top: 1px solid #263847 }
+    .log-entry { display: grid; grid-template-columns: 72px 110px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid #263847; font: 12px/1.45 Consolas, monospace }
+    .log-entry.error { color: #ff9ca9 }
     pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font: 13px/1.55 Consolas, monospace }
     @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } }
   </style>
@@ -99,6 +104,13 @@ const { url } = await createPlayer({ apiBaseUrl, publicKey })
 video.src = url</code></pre>
       <p>The SDK is treated as a black box. Store the returned <code>videoId</code> with your document.</p>
     </section>
+
+    <section class="log">
+      <h2>Activity Log</h2>
+      <p>ไม่บันทึก publishable key, user token, upload URL หรือ Playback URL</p>
+      <div class="row"><button id="copyLog">Copy log</button><button id="clearLog">Clear</button></div>
+      <div class="log-list" id="activityLog"></div>
+    </section>
   </main>
 
   <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
@@ -106,6 +118,16 @@ video.src = url</code></pre>
     const { createPlayer, createRecorder, describeError, PackikoError } = PackikoVideo;
     const byId = (id) => document.getElementById(id);
     const errorText = (error) => error instanceof PackikoError ? describeError(error.code, 'th') : String(error);
+    const logEntries = [];
+    function log(scope, message, detail = '', level = 'info') {
+      const entry = { at: new Date().toLocaleTimeString('th-TH', { hour12: false }), scope, message, detail, level };
+      logEntries.push(entry);
+      const row = document.createElement('div');
+      row.className = 'log-entry ' + level;
+      row.textContent = `[${entry.at}] ${scope} · ${message}${detail ? ' · ' + detail : ''}`;
+      byId('activityLog').appendChild(row);
+      byId('activityLog').scrollTop = byId('activityLog').scrollHeight;
+    }
 
     function cameraFlow(prefix, getRecorder, onClip) {
       let capture = null;
@@ -113,6 +135,7 @@ video.src = url</code></pre>
       byId(prefix + 'Open').addEventListener('click', async () => {
         byId(prefix + 'Error').textContent = '';
         byId(prefix + 'Status').textContent = 'Opening camera';
+        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Opening camera', location.origin);
         try {
           recorder = getRecorder();
           capture?.dispose();
@@ -122,9 +145,11 @@ video.src = url</code></pre>
           byId(prefix + 'Video').controls = false;
           byId(prefix + 'Start').disabled = false;
           byId(prefix + 'Status').textContent = 'Camera ready';
+          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Camera ready', '', 'success');
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
           byId(prefix + 'Status').textContent = 'Could not open camera';
+          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Camera failed', errorText(error), 'error');
         }
       });
       byId(prefix + 'Start').addEventListener('click', () => {
@@ -133,11 +158,13 @@ video.src = url</code></pre>
         byId(prefix + 'Start').disabled = true;
         byId(prefix + 'Stop').disabled = false;
         byId(prefix + 'Status').textContent = 'Recording';
+        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Recording started');
       });
       byId(prefix + 'Stop').addEventListener('click', async () => {
         if (!capture || capture.state !== 'recording') return;
         byId(prefix + 'Stop').disabled = true;
         byId(prefix + 'Status').textContent = 'Saving';
+        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Recording stopped');
         try {
           const clip = await capture.stop();
           capture.dispose();
@@ -146,6 +173,7 @@ video.src = url</code></pre>
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
           byId(prefix + 'Status').textContent = 'Not saved';
+          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Save failed', errorText(error), 'error');
         }
       });
       return () => capture?.dispose();
@@ -161,6 +189,7 @@ video.src = url</code></pre>
       video.controls = true;
       video.muted = false;
       byId('demoStatus').textContent = 'Ready to play';
+      log('Camera demo', 'Local playback ready', '', 'success');
       await video.play().catch(() => undefined);
     });
 
@@ -183,6 +212,7 @@ video.src = url</code></pre>
       byId('liveStatus').textContent = 'Complete';
       byId('livePlay').disabled = false;
       byId('playbackVideoId').value = videoId;
+      log('Record & Upload', 'Video API confirmed upload', 'videoId ' + videoId, 'success');
     });
 
     byId('livePlay').addEventListener('click', async () => {
@@ -209,16 +239,24 @@ video.src = url</code></pre>
       }
       try {
         byId('playbackStatus').textContent = 'Preparing playback';
+        log('Playback', 'Resolving videoId');
         const config = { apiBaseUrl: byId('apiUrl').value.trim(), publicKey: byId('publicKey').value.trim() };
         const result = await createPlayer(config).resolvePlaybackUrl(id);
         byId('playbackVideo').src = result.url;
         byId('playbackStatus').textContent = 'Ready to play';
+        log('Playback', 'Playback ready', '', 'success');
         await byId('playbackVideo').play().catch(() => undefined);
       } catch (error) {
         byId('playbackStatus').textContent = 'Playback failed';
         byId('playbackError').textContent = errorText(error);
+        const hint = error instanceof PackikoError && (error.code === 'network_error' || error.code === 'origin_not_allowed') ? ' · check exact origin ' + location.origin : '';
+        log('Playback', 'Playback failed', errorText(error) + hint, 'error');
       }
     });
+
+    byId('copyLog').addEventListener('click', () => navigator.clipboard.writeText(logEntries.map((entry) => `[${entry.at}] [${entry.scope}] ${entry.message}${entry.detail ? ' · ' + entry.detail : ''}`).join('\n')));
+    byId('clearLog').addEventListener('click', () => { logEntries.length = 0; byId('activityLog').textContent = ''; });
+    log('Example', 'Ready', 'origin ' + location.origin);
 
     window.addEventListener('pagehide', () => {
       disposeDemo();

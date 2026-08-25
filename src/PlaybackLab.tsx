@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPlayer, describeError, PackikoError } from '@packiko/video-sdk'
+import type { ActivityLevel } from './ActivityLog'
 
 export interface PlaybackConfig {
   apiBaseUrl: string
@@ -12,6 +13,7 @@ interface PlaybackLabProps {
   initialVideoId: string
   authLabel: string
   onOpenSetup: () => void
+  onEvent: (scope: string, message: string, level?: ActivityLevel, detail?: string) => void
 }
 
 type PlaybackPhase = 'idle' | 'loading' | 'ready' | 'error'
@@ -21,7 +23,7 @@ function messageFor(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function PlaybackLab({ config, initialVideoId, authLabel, onOpenSetup }: PlaybackLabProps) {
+export function PlaybackLab({ config, initialVideoId, authLabel, onOpenSetup, onEvent }: PlaybackLabProps) {
   const [videoId, setVideoId] = useState(initialVideoId)
   const [playbackUrl, setPlaybackUrl] = useState('')
   const [phase, setPhase] = useState<PlaybackPhase>('idle')
@@ -36,13 +38,17 @@ export function PlaybackLab({ config, initialVideoId, authLabel, onOpenSetup }: 
     setPlaybackUrl('')
     setError('')
     setPhase('loading')
+    onEvent('Playback', 'กำลังขอวิดีโอจาก videoId', 'info')
     try {
       const result = await createPlayer(config).resolvePlaybackUrl(videoId.trim())
       setPlaybackUrl(result.url)
       setPhase('ready')
+      onEvent('Playback', 'ได้ Playback URL และพร้อมเล่น', 'success', `expires ${result.expiresAt}`)
     } catch (cause) {
       setError(messageFor(cause))
       setPhase('error')
+      const code = cause instanceof PackikoError ? cause.code : 'unexpected_error'
+      onEvent('Playback', 'เปิดวิดีโอไม่สำเร็จ', 'error', `${code} · ${messageFor(cause)}`)
     }
   }
 

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { createRecorder, describeError, PackikoError, type CaptureHandle } from '@packiko/video-sdk'
 import { useRecorder } from '@packiko/video-sdk/react'
+import { ActivityLog, type ActivityEntry, type ActivityLevel } from './ActivityLog'
 import { authInitError, isAuthenticated, login, logout, modeB, modeBConfigured, subject } from './auth'
 import { ImplementationGuide } from './ImplementationGuide'
 import { PlaybackLab, type PlaybackConfig } from './PlaybackLab'
@@ -17,7 +18,11 @@ function messageFor(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function LocalDemo() {
+interface EventSourceProps {
+  onEvent: (scope: string, message: string, level?: ActivityLevel, detail?: string) => void
+}
+
+function LocalDemo({ onEvent }: EventSourceProps) {
   const [state, setState] = useState<DemoState>('idle')
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [clipUrl, setClipUrl] = useState('')
@@ -47,15 +52,18 @@ function LocalDemo() {
     setState('opening')
     setError('')
     clearClip()
+    onEvent('Camera demo', 'กำลังขอสิทธิ์เปิดกล้อง', 'info', window.location.origin)
     try {
       captureRef.current?.dispose()
       const capture = await demoRecorder.capture()
       captureRef.current = capture
       setStream(capture.previewStream)
       setState('ready')
+      onEvent('Camera demo', 'กล้องพร้อมใช้งาน', 'success')
     } catch (cause) {
       setError(messageFor(cause))
       setState('error')
+      onEvent('Camera demo', 'เปิดกล้องไม่สำเร็จ', 'error', messageFor(cause))
     }
   }
 
@@ -64,6 +72,7 @@ function LocalDemo() {
     if (!capture || capture.state !== 'idle') return
     capture.start()
     setState('recording')
+    onEvent('Camera demo', 'เริ่มบันทึกในเครื่อง')
   }
 
   async function stop(): Promise<void> {
@@ -79,9 +88,11 @@ function LocalDemo() {
       clipUrlRef.current = url
       setClipUrl(url)
       setState('complete')
+      onEvent('Camera demo', 'หยุดบันทึกและสร้าง local playback สำเร็จ', 'success')
     } catch (cause) {
       setError(messageFor(cause))
       setState('error')
+      onEvent('Camera demo', 'เตรียม local playback ไม่สำเร็จ', 'error', messageFor(cause))
     }
   }
 
@@ -124,6 +135,7 @@ interface SetupStepProps {
   onOrderRef: (value: string) => void
   configured: boolean
   onConfigured: (value: boolean) => void
+  onEvent: EventSourceProps['onEvent']
 }
 
 function SetupStep(props: SetupStepProps) {
@@ -133,6 +145,11 @@ function SetupStep(props: SetupStepProps) {
   const change = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement>) => {
     setter(event.target.value)
     props.onConfigured(false)
+  }
+
+  function applyConfiguration(): void {
+    props.onConfigured(true)
+    props.onEvent('Setup', `ใช้ ${props.authChoice === 'a' ? 'Mode A' : 'Mode B'} สำหรับการทดลอง`, 'success', `origin ${window.location.origin} · API ${props.authChoice === 'a' ? props.apiBaseUrl : modeAConfig.apiBaseUrl}`)
   }
 
   return (
@@ -167,7 +184,7 @@ function SetupStep(props: SetupStepProps) {
       )}
       <label className="order-field">Order reference<input value={props.orderRef} onChange={change(props.onOrderRef)} disabled={props.configured} /></label>
       <div className="actions">
-        {!props.configured && <button className="primary" onClick={() => props.onConfigured(true)} disabled={!ready || !props.orderRef.trim()}>ใช้ค่านี้และเปิดกล้อง</button>}
+        {!props.configured && <button className="primary" onClick={applyConfiguration} disabled={!ready || !props.orderRef.trim()}>ใช้ค่านี้และเปิดกล้อง</button>}
         {props.configured && <button className="secondary" onClick={() => props.onConfigured(false)}>แก้ไขการตั้งค่า</button>}
       </div>
     </section>
@@ -181,15 +198,17 @@ interface IntegrationRecorderProps {
   config: PlaybackConfig
   onVideoId: (videoId: string) => void
   onOpenPlayback: () => void
+  onEvent: EventSourceProps['onEvent']
 }
 
-function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, onVideoId, onOpenPlayback }: IntegrationRecorderProps) {
+function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, onVideoId, onOpenPlayback, onEvent }: IntegrationRecorderProps) {
   const { previewStream, state, progress, videoId, error, start, stop, restart } = useRecorder({
     ...config,
     orderRef,
     upload: { ...(externalUserRef ? { externalUserRef } : {}), ...(merchantId ? { merchantId } : {}) },
   })
   const previewRef = useRef<HTMLVideoElement>(null)
+  const previousStateRef = useRef(state)
   const [linked, setLinked] = useState(false)
 
   useEffect(() => {
@@ -197,8 +216,23 @@ function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, on
   }, [previewStream])
 
   useEffect(() => {
-    if (videoId) onVideoId(videoId)
-  }, [onVideoId, videoId])
+    if (!videoId) return
+    onVideoId(videoId)
+    onEvent('Record & Upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'success', `videoId ${videoId}`)
+  }, [onEvent, onVideoId, videoId])
+
+  useEffect(() => {
+    if (previousStateRef.current === state) return
+    previousStateRef.current = state
+    const copy = state === 'recording' ? 'เริ่มบันทึกวิดีโอ' : state === 'stopped' ? 'หยุดบันทึกและเตรียมอัปโหลด' : state === 'uploading' ? 'กำลังอัปโหลดหลักฐาน' : null
+    if (copy) onEvent('Record & Upload', copy)
+  }, [onEvent, state])
+
+  useEffect(() => {
+    if (!error) return
+    const originHint = error.code === 'network_error' || error.code === 'origin_not_allowed' ? ` · ตรวจ allowlist ให้ตรง ${window.location.origin}` : ''
+    onEvent('Record & Upload', 'อัปโหลดไม่สำเร็จ', 'error', `${error.code} · ${messageFor(error)}${originHint}`)
+  }, [error, onEvent])
 
   const label = state === 'recording' ? 'กำลังบันทึก' : state === 'uploading' || state === 'stopped'
     ? 'กำลังอัปโหลด' : state === 'uploaded' ? 'ได้ videoId แล้ว' : state === 'error' ? 'ไม่สำเร็จ' : 'กล้องพร้อม'
@@ -219,6 +253,7 @@ function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, on
       {videoId && <p className="result">สำเร็จ · videoId <code>{videoId}</code></p>}
       {linked && <p className="result">จำลองแล้ว: Partner backend บันทึก videoId กับ {orderRef}</p>}
       {error && <p className="error" role="alert">{messageFor(error)}</p>}
+      {error && (error.code === 'network_error' || error.code === 'origin_not_allowed') && <p className="error-hint">Origin ปัจจุบันคือ <code>{window.location.origin}</code> ต้องลงทะเบียนแบบตรงตัว รวม protocol, host และ port</p>}
       <p className="note">เมื่อ state เป็น uploaded ให้นำ videoId ไปบันทึกกับออเดอร์ผ่าน backend ของ Partner จากนั้นใช้ ID เดิมเปิด Playback ได้</p>
     </section>
   )
@@ -234,6 +269,29 @@ export default function RecorderLab() {
   const [orderRef, setOrderRef] = useState('partner-order-001')
   const [configured, setConfigured] = useState(false)
   const [lastVideoId, setLastVideoId] = useState('')
+  const nextEntryIdRef = useRef(2)
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([{
+    id: 1,
+    at: new Date().toLocaleTimeString('th-TH', { hour12: false }),
+    scope: 'Example',
+    message: 'พร้อมเริ่มทดลอง',
+    detail: `origin ${window.location.origin}`,
+    level: 'info',
+  }])
+  const logEvent = useCallback<EventSourceProps['onEvent']>((scope, message, level = 'info', detail) => {
+    setActivityEntries((current) => {
+      const previous = current[current.length - 1]
+      if (previous?.scope === scope && previous.message === message && previous.detail === detail) return current
+      return [...current.slice(-49), {
+        id: nextEntryIdRef.current++,
+        at: new Date().toLocaleTimeString('th-TH', { hour12: false }),
+        scope,
+        message,
+        detail,
+        level,
+      }]
+    })
+  }, [])
   const config: PlaybackConfig = authChoice === 'b'
     ? { apiBaseUrl: sdkConfig.apiBaseUrl, publicKey: sdkConfig.publicKey, getUserToken: sdkConfig.getUserToken }
     : { apiBaseUrl, publicKey }
@@ -247,15 +305,16 @@ export default function RecorderLab() {
         <button className={view === 'playback' ? 'active' : ''} onClick={() => setView('playback')}>Playback</button>
         <button className={view === 'implement' ? 'active' : ''} onClick={() => setView('implement')}>Implementation</button>
       </nav>
-      {view === 'demo' && <LocalDemo />}
+      {view === 'demo' && <LocalDemo onEvent={logEvent} />}
       {view === 'record' && (
         <>
-          <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} />
-          {configured ? <IntegrationRecorder key={`${authChoice}:${orderRef}:${publicKey}`} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} config={config} onVideoId={setLastVideoId} onOpenPlayback={() => setView('playback')} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Record & Upload</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
+          <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} onEvent={logEvent} />
+          {configured ? <IntegrationRecorder key={`${authChoice}:${orderRef}:${publicKey}`} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} config={config} onVideoId={setLastVideoId} onOpenPlayback={() => setView('playback')} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Record & Upload</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
         </>
       )}
-      {view === 'playback' && <PlaybackLab config={config} initialVideoId={lastVideoId} authLabel={authChoice === 'a' ? 'Mode A' : 'Mode B'} onOpenSetup={() => setView('record')} />}
+      {view === 'playback' && <PlaybackLab config={config} initialVideoId={lastVideoId} authLabel={authChoice === 'a' ? 'Mode A' : 'Mode B'} onOpenSetup={() => setView('record')} onEvent={logEvent} />}
       {view === 'implement' && <ImplementationGuide authChoice={authChoice} />}
+      <ActivityLog entries={activityEntries} onClear={() => setActivityEntries([])} />
     </>
   )
 }
