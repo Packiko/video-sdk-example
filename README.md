@@ -166,3 +166,14 @@ recording and playback calls needed by a non-React application. Serve it through
 Vite origin (`pnpm dev` → `/plain.html`); do not open it as `file://`, because that produces
 the `null` origin and cannot pass the Video API allowlist. The Vanilla page uses the same four
 workspace tabs and terminology as the React page, while its implementation remains framework-free.
+
+The Vanilla workspace supports both authentication paths interactively:
+
+- **Mode A** accepts a publishable key and optional `externalUserRef`. It has no OIDC client ID.
+- **Mode B** accepts a Mode B publishable key plus public OIDC URL, realm, and client ID. It
+  loads the public Keycloak browser client, performs a PKCE redirect, and supplies the SDK with
+  `getUserToken()` for record/upload and playback.
+
+The OIDC client must allow the exact `/plain.html` redirect URI and page origin. No client secret
+belongs in this browser example. The page stores only public form values in `sessionStorage` and
+the Activity Log never prints the publishable key, access token, upload URL, or signed playback URL.

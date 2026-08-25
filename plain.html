@@ -42,9 +42,17 @@
     .workspace-panel { display: none }
     .workspace-panel.active { display: block }
     .path-label { color: #0a659f; font-size: 11px; font-weight: 800; text-transform: uppercase }
+    .auth-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px }
+    .auth-switch button.active { border-color: #2681b8; background: #e9f3f9; color: #075f99 }
+    .auth-panel { margin-top: 12px; padding: 14px; border: 1px solid #dbe4ea; border-radius: 6px; background: #fafcfd }
+    .auth-panel[hidden] { display: none }
+    .auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+    .auth-grid label { margin-top: 0 }
+    .mode-state { padding: 8px 10px; border-radius: 5px; background: #eef3f6; color: #50677a }
+    .mode-state.ready { background: #e3f3ea; color: #176a45 }
     pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font: 13px/1.55 Consolas, monospace }
-    @media (max-width: 720px) { .workspace-tabs { grid-template-columns: 1fr 1fr } }
-    @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } .log-entry { grid-template-columns: 1fr } }
+    @media (max-width: 720px) { .workspace-tabs, .auth-grid { grid-template-columns: 1fr 1fr } }
+    @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } .log-entry, .auth-switch, .auth-grid { grid-template-columns: 1fr } }
   </style>
 </head>
 <body>
@@ -77,12 +85,34 @@
     </section>
 
     <section class="workspace-panel" id="recordPanel">
-      <span class="path-label">Record & Upload</span><h2>Mode A · บันทึกหลักฐานไปยัง Video API</h2>
-      <p class="info"><b>Mode A ไม่มี OIDC Client ID</b> — ใช้ publishable key ระบุบัญชี Video และส่งรหัสผู้ใช้ของ Partner เป็น externalUserRef ได้</p>
+      <span class="path-label">Record & Upload</span><h2>เลือก Mode A หรือ Mode B แล้วบันทึกหลักฐาน</h2>
+      <div class="auth-switch" aria-label="Authentication mode">
+        <button class="active" id="modeABtn">Mode A · Partner attests user</button>
+        <button id="modeBBtn">Mode B · OIDC login</button>
+      </div>
+
+      <div class="auth-panel" id="modeAPanel">
+        <p class="info"><b>Mode A ไม่มี OIDC Client ID</b> — ใช้ publishable key ระบุบัญชี Video และส่งรหัสผู้ใช้ของ Partner เป็น externalUserRef ได้</p>
+        <div class="auth-grid">
+          <label>Publishable key<input id="publicKey" placeholder="pk_your_mode_a_key" /></label>
+          <label>External user reference<input id="externalUserRef" value="partner-user-001" placeholder="optional" /></label>
+        </div>
+      </div>
+
+      <div class="auth-panel" id="modeBPanel" hidden>
+        <p class="info"><b>Mode B ใช้ OIDC Client ID</b> — Partner login กับ IdP แล้ว SDK ขอ token ใหม่ผ่าน getUserToken สำหรับ Video API requests</p>
+        <div class="auth-grid">
+          <label>Mode B publishable key<input id="modeBPublicKey" /></label>
+          <label>Identity provider URL<input id="oidcUrl" /></label>
+          <label>Realm<input id="oidcRealm" /></label>
+          <label>OIDC Client ID<input id="oidcClientId" /></label>
+        </div>
+        <div class="row"><button class="primary" id="oidcLogin" disabled>Login OIDC</button><button id="oidcLogout" hidden>Logout</button></div>
+        <p class="mode-state" id="oidcStatus">กำลังเตรียม OIDC…</p>
+      </div>
+
       <label>Video API URL<input id="apiUrl" value="https://video-uat.packiko.com" /></label>
-      <label>Publishable key<input id="publicKey" placeholder="pk_your_key" /></label>
       <label>Order reference<input id="orderRef" value="partner-order-001" /></label>
-      <label>External user reference<input id="externalUserRef" value="partner-user-001" placeholder="optional" /></label>
       <label>Merchant ID<input id="merchantId" placeholder="optional" /></label>
       <video id="liveVideo" autoplay muted playsinline></video>
       <div class="row">
@@ -91,7 +121,7 @@
         <button class="primary" id="liveStop" disabled>Stop and save</button>
         <button id="livePlay" disabled>Open video</button>
       </div>
-      <p class="status" id="liveStatus">Enter your key to begin</p>
+      <p class="status" id="liveStatus">Mode A · Enter your key to begin</p>
       <p class="result" id="liveResult"></p>
       <p class="error" id="liveError"></p>
     </section>
@@ -109,7 +139,8 @@
     <section class="workspace-panel" id="implementationPanel">
       <span class="path-label">Implementation</span><h2>โค้ดที่ Partner ต้องเขียน</h2>
       <p>ลำดับเดียวกับ React: config → record/upload → Partner attach → playback</p>
-      <pre><code>const recorder = createRecorder({ apiBaseUrl, publicKey })
+      <pre><code id="implementationCode">const config = { apiBaseUrl, publicKey }
+const recorder = createRecorder(config)
 const capture = await recorder.capture()
 capture.start()
 
@@ -153,12 +184,109 @@ video.src = url</code></pre>
     }
 
     if (location.protocol === 'file:') byId('protocolWarning').hidden = false;
+    const savedPanel = sessionStorage.getItem('plainActivePanel') || 'demoPanel';
     document.querySelectorAll('.workspace-tabs button').forEach((button) => {
+      button.classList.toggle('active', button.dataset.panel === savedPanel);
       button.addEventListener('click', () => {
+        sessionStorage.setItem('plainActivePanel', button.dataset.panel);
         document.querySelectorAll('.workspace-tabs button').forEach((item) => item.classList.toggle('active', item === button));
         document.querySelectorAll('.workspace-panel').forEach((panel) => panel.classList.toggle('active', panel.id === button.dataset.panel));
       });
     });
+    document.querySelectorAll('.workspace-panel').forEach((panel) => panel.classList.toggle('active', panel.id === savedPanel));
+
+    const MODE_B_DEFAULTS = {
+      publicKey: 'pk_uat_example_41340973f06bfdfbd095a3e832aa93d4234eccefa845e94d',
+      url: 'https://login.thaicloud.com',
+      realm: 'common',
+      clientId: '019be89c-cc99-7f1d-b5c6-ca4ddddddddd',
+    };
+    const savedModeB = JSON.parse(sessionStorage.getItem('plainModeBConfig') || 'null') || MODE_B_DEFAULTS;
+    byId('modeBPublicKey').value = savedModeB.publicKey;
+    byId('oidcUrl').value = savedModeB.url;
+    byId('oidcRealm').value = savedModeB.realm;
+    byId('oidcClientId').value = savedModeB.clientId;
+
+    const authMode = () => sessionStorage.getItem('plainAuthMode') || 'a';
+    const modeBValues = () => ({
+      publicKey: byId('modeBPublicKey').value.trim(),
+      url: byId('oidcUrl').value.trim(),
+      realm: byId('oidcRealm').value.trim(),
+      clientId: byId('oidcClientId').value.trim(),
+    });
+    function currentVideoConfig() {
+      if (authMode() === 'b' && window.PackikoPlainModeB?.active) {
+        return {
+          apiBaseUrl: byId('apiUrl').value.trim(),
+          publicKey: window.PackikoPlainModeB.publicKey,
+          getUserToken: window.PackikoPlainModeB.getUserToken,
+        };
+      }
+      return { apiBaseUrl: byId('apiUrl').value.trim(), publicKey: byId('publicKey').value.trim() };
+    }
+    function configProblem() {
+      if (authMode() === 'b' && !window.PackikoPlainModeB?.active) return 'Login OIDC ใน Mode B ก่อน';
+      if (authMode() === 'a' && !byId('publicKey').value.trim()) return 'Enter your Mode A publishable key first';
+      return '';
+    }
+    function renderAuthMode() {
+      const mode = authMode();
+      byId('modeAPanel').hidden = mode !== 'a';
+      byId('modeBPanel').hidden = mode !== 'b';
+      byId('modeABtn').classList.toggle('active', mode === 'a');
+      byId('modeBBtn').classList.toggle('active', mode === 'b');
+      byId('liveStatus').textContent = mode === 'a'
+        ? (byId('publicKey').value.trim() ? 'Mode A · Ready' : 'Mode A · Enter your key to begin')
+        : (window.PackikoPlainModeB?.active ? 'Mode B · Ready' : 'Mode B · Login OIDC to begin');
+      byId('implementationCode').textContent = mode === 'a'
+        ? `const config = { apiBaseUrl, publicKey }
+const recorder = createRecorder(config)
+const capture = await recorder.capture()
+
+video.srcObject = capture.previewStream
+capture.start()
+const blob = await capture.stop()
+capture.dispose()
+
+const { videoId } = await recorder.upload(blob, {
+  orderRef,
+  externalUserRef,
+  merchantId,
+}).promise
+
+await partnerApi.attachVideo(orderRef, { videoId })
+
+const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
+video.src = url`
+        : `const config = {
+  apiBaseUrl,
+  publicKey,
+  getUserToken: () => partnerAuth.getAccessToken(),
+}
+const recorder = createRecorder(config)
+const capture = await recorder.capture()
+
+video.srcObject = capture.previewStream
+capture.start()
+const blob = await capture.stop()
+capture.dispose()
+
+const { videoId } = await recorder.upload(blob, {
+  orderRef,
+  merchantId,
+}).promise
+
+await partnerApi.attachVideo(orderRef, { videoId })
+
+const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
+video.src = url`;
+    }
+    window.renderPlainAuthMode = renderAuthMode;
+    window.logPlainEvent = log;
+    byId('modeABtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'a'); renderAuthMode(); log('Auth', 'Selected Mode A'); });
+    byId('modeBBtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'b'); renderAuthMode(); log('Auth', 'Selected Mode B'); window.dispatchEvent(new Event('plain-mode-b-selected')); });
+    byId('publicKey').addEventListener('input', renderAuthMode);
+    renderAuthMode();
 
     function cameraFlow(prefix, getRecorder, onClip) {
       let capture = null;
@@ -227,14 +355,14 @@ video.src = url</code></pre>
     let liveRecorder = null;
     let videoId = '';
     const disposeLive = cameraFlow('live', () => {
-      const publicKey = byId('publicKey').value.trim();
-      if (!publicKey) throw new Error('Enter your publishable key first');
-      liveRecorder = createRecorder({ apiBaseUrl: byId('apiUrl').value.trim(), publicKey });
+      const problem = configProblem();
+      if (problem) throw new Error(problem);
+      liveRecorder = createRecorder(currentVideoConfig());
       return liveRecorder;
     }, async (clip) => {
       const upload = {
         orderRef: byId('orderRef').value.trim(),
-        ...(byId('externalUserRef').value.trim() ? { externalUserRef: byId('externalUserRef').value.trim() } : {}),
+        ...(authMode() === 'a' && byId('externalUserRef').value.trim() ? { externalUserRef: byId('externalUserRef').value.trim() } : {}),
         ...(byId('merchantId').value.trim() ? { merchantId: byId('merchantId').value.trim() } : {}),
       };
       const result = await liveRecorder.upload(clip, upload).promise;
@@ -248,8 +376,9 @@ video.src = url</code></pre>
 
     byId('livePlay').addEventListener('click', async () => {
       try {
-        const config = { apiBaseUrl: byId('apiUrl').value.trim(), publicKey: byId('publicKey').value.trim() };
-        const result = await createPlayer(config).resolvePlaybackUrl(videoId);
+        const problem = configProblem();
+        if (problem) throw new Error(problem);
+        const result = await createPlayer(currentVideoConfig()).resolvePlaybackUrl(videoId);
         const video = byId('liveVideo');
         video.srcObject = null;
         video.src = result.url;
@@ -269,10 +398,11 @@ video.src = url</code></pre>
         return;
       }
       try {
+        const problem = configProblem();
+        if (problem) throw new Error(problem);
         byId('playbackStatus').textContent = 'Preparing playback';
         log('Playback', 'Resolving videoId');
-        const config = { apiBaseUrl: byId('apiUrl').value.trim(), publicKey: byId('publicKey').value.trim() };
-        const result = await createPlayer(config).resolvePlaybackUrl(id);
+        const result = await createPlayer(currentVideoConfig()).resolvePlaybackUrl(id);
         byId('playbackVideo').src = result.url;
         byId('playbackStatus').textContent = 'Ready to play';
         log('Playback', 'Playback ready', '', 'success');
@@ -294,6 +424,137 @@ video.src = url</code></pre>
       disposeLive();
       if (demoUrl) URL.revokeObjectURL(demoUrl);
     });
+  </script>
+  <script type="module">
+    const byId = (id) => document.getElementById(id);
+    const log = (message, detail = '', level = 'info') => window.logPlainEvent?.('Mode B', message, detail, level);
+    const values = () => ({
+      publicKey: byId('modeBPublicKey').value.trim(),
+      url: byId('oidcUrl').value.trim(),
+      realm: byId('oidcRealm').value.trim(),
+      clientId: byId('oidcClientId').value.trim(),
+    });
+    const identitySignature = ({ url, realm, clientId }) => JSON.stringify({ url, realm, clientId });
+
+    let keycloak = null;
+    let initializedSignature = '';
+    let initializePromise = null;
+
+    function showStatus(text, ready = false) {
+      byId('oidcStatus').textContent = text;
+      byId('oidcStatus').classList.toggle('ready', ready);
+    }
+
+    function activate(client) {
+      window.PackikoPlainModeB = {
+        active: true,
+        get publicKey() { return byId('modeBPublicKey').value.trim(); },
+        getUserToken: async () => {
+          try { await client.updateToken(30); } catch { /* The SDK will surface an auth failure. */ }
+          return client.token ?? '';
+        },
+      };
+      sessionStorage.setItem('plainAuthMode', 'b');
+      showStatus('Mode B พร้อมใช้งาน', true);
+      byId('oidcLogin').hidden = true;
+      byId('oidcLogout').hidden = false;
+      window.renderPlainAuthMode?.();
+      log('OIDC login complete', 'Mode B config is ready', 'success');
+    }
+
+    async function initializeModeB() {
+      if (location.protocol === 'file:') {
+        showStatus('Mode B ต้องเปิดผ่าน HTTP เพื่อทำ OIDC redirect');
+        byId('oidcLogin').disabled = true;
+        return null;
+      }
+
+      const config = values();
+      if (!config.url || !config.realm || !config.clientId || !config.publicKey) {
+        showStatus('กรอก Mode B publishable key และค่า OIDC ให้ครบ');
+        byId('oidcLogin').disabled = false;
+        return null;
+      }
+
+      const signature = identitySignature(config);
+      if (keycloak && initializedSignature === signature) return keycloak;
+      if (initializePromise) return initializePromise;
+
+      byId('oidcLogin').disabled = true;
+      showStatus('กำลังเชื่อมต่อ OIDC...');
+      log('Initializing OIDC', 'Public browser client configuration');
+
+      initializePromise = (async () => {
+        try {
+          const module = await import('https://cdn.jsdelivr.net/npm/keycloak-js@26/+esm');
+          const client = new module.default({ url: config.url, realm: config.realm, clientId: config.clientId });
+          await client.init({ pkceMethod: 'S256', checkLoginIframe: false });
+          keycloak = client;
+          initializedSignature = signature;
+
+          if (client.authenticated) {
+            activate(client);
+          } else {
+            delete window.PackikoPlainModeB;
+            showStatus('ยังไม่ได้ Login OIDC');
+            byId('oidcLogin').hidden = false;
+            byId('oidcLogout').hidden = true;
+            window.renderPlainAuthMode?.();
+            log('OIDC client ready', 'Waiting for login');
+          }
+          byId('oidcLogin').disabled = false;
+
+          if (!client.authenticated && sessionStorage.getItem('plainModeBAutoLogin') === '1') {
+            sessionStorage.removeItem('plainModeBAutoLogin');
+            log('Redirecting to OIDC login');
+            await client.login({ redirectUri: window.location.href });
+          }
+          return client;
+        } catch (error) {
+          keycloak = null;
+          initializedSignature = '';
+          delete window.PackikoPlainModeB;
+          showStatus('ติดต่อ OIDC ไม่สำเร็จ ตรวจ URL, realm, client ID และ network');
+          byId('oidcLogin').hidden = false;
+          byId('oidcLogin').disabled = false;
+          window.renderPlainAuthMode?.();
+          log('OIDC initialization failed', String(error), 'error');
+          return null;
+        } finally {
+          initializePromise = null;
+        }
+      })();
+
+      return initializePromise;
+    }
+
+    byId('oidcLogin').addEventListener('click', async () => {
+      const config = values();
+      sessionStorage.setItem('plainAuthMode', 'b');
+      sessionStorage.setItem('plainActivePanel', 'recordPanel');
+      sessionStorage.setItem('plainModeBConfig', JSON.stringify(config));
+
+      if (initializedSignature && initializedSignature !== identitySignature(config)) {
+        sessionStorage.setItem('plainModeBAutoLogin', '1');
+        window.location.reload();
+        return;
+      }
+
+      const client = await initializeModeB();
+      if (!client || client.authenticated) return;
+      log('Redirecting to OIDC login');
+      await client.login({ redirectUri: window.location.href });
+    });
+
+    byId('oidcLogout').addEventListener('click', async () => {
+      if (!keycloak) return;
+      delete window.PackikoPlainModeB;
+      log('Redirecting to OIDC logout');
+      await keycloak.logout({ redirectUri: window.location.href });
+    });
+
+    window.addEventListener('plain-mode-b-selected', () => { void initializeModeB(); });
+    if (sessionStorage.getItem('plainAuthMode') === 'b') void initializeModeB();
   </script>
 </body>
 </html>

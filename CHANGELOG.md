@@ -19,3 +19,8 @@
   error codes, exact-origin diagnostics, copy, and clear actions.
 - Aligned the Vanilla workspace navigation and terminology with React, and added a prominent
   warning that direct `file://` use cannot test upload/playback because its origin is `null`.
+- Restored interactive Mode A and Mode B setup in the Vanilla workspace, including editable
+  OIDC browser-client values, PKCE login/logout, shared record/playback configuration, and
+  sanitized login diagnostics.
+- Included `plain.html` as a production build entry so the Vanilla workspace ships with the
+  deployed Example instead of being available only from the development server.
