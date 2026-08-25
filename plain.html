@@ -63,7 +63,7 @@
       Camera demo ใช้ได้ แต่ Record & Upload และ Playback จะมี origin เป็น `null` และไม่ผ่าน allowlist/CORS
       กรุณารัน <code>pnpm dev</code> แล้วเปิด <code>/plain.html</code> จาก URL ที่ Vite แสดง
     </div>
-    <div class="hero"><small>Partner SDK workspace · Vanilla JavaScript</small><h1>ทดลองและนำ Video SDK ไปใช้จริง</h1><p>Flow เดียวกับ React Example โดยใช้ public SDK calls สำหรับแอปที่ไม่ใช้ React</p></div>
+    <div class="hero"><small>Partner SDK workspace · Vanilla JavaScript</small><h1>ทดลองและนำ Video SDK ไปใช้จริง</h1><p>ตัวอย่างสำหรับ Partner โดยใช้ public SDK calls และไม่ต้องติดตั้ง React</p></div>
     <nav class="workspace-tabs" aria-label="พื้นที่ทดลอง Video SDK">
       <button class="active" data-panel="demoPanel">Camera demo</button>
       <button data-panel="recordPanel">Record & Upload</button>
@@ -138,7 +138,7 @@
 
     <section class="workspace-panel" id="implementationPanel">
       <span class="path-label">Implementation</span><h2>โค้ดที่ Partner ต้องเขียน</h2>
-      <p>ลำดับเดียวกับ React: config → record/upload → Partner attach → playback</p>
+      <p>ลำดับการเชื่อมต่อ: config → record/upload → Partner attach → playback</p>
       <pre><code id="implementationCode">const config = { apiBaseUrl, publicKey }
 const recorder = createRecorder(config)
 const capture = await recorder.capture()

@@ -24,3 +24,6 @@
   sanitized login diagnostics.
 - Included `plain.html` as a production build entry so the Vanilla workspace ships with the
   deployed Example instead of being available only from the development server.
+- Made Vanilla JavaScript the Partner golden path: `/` now redirects to `/plain.html`, the
+  README uses browser-JavaScript integration code, and React moved to `/react.html` as an
+  internal comparison only.

@@ -1,7 +1,7 @@
 # Packiko Video SDK Example
 
-Partner-facing example for adding video evidence to an order flow. This repository documents
-only the public SDK contract that a Partner application needs to call.
+Partner-facing **Vanilla JavaScript** example for adding video evidence to an order flow. This
+repository documents only the public SDK contract that a Partner application needs to call.
 
 ## Try it
 
@@ -9,6 +9,10 @@ only the public SDK contract that a Partner application needs to call.
 pnpm install
 pnpm dev
 ```
+
+Open the URL printed by Vite. The root route redirects to `/plain.html`, which is the Partner
+implementation target. Do not open the file directly with `file://`; that produces the `null`
+origin and cannot pass the Video API allowlist.
 
 The application has four visible workspaces:
 
@@ -19,11 +23,8 @@ The application has four visible workspaces:
 - **Implementation:** read the complete public-API path for config, record, Partner attach,
   and playback.
 
-The React source for those flows is deliberately small and directly reusable:
-
-- [`src/RecorderLab.tsx`](src/RecorderLab.tsx) — Mode A/Mode B setup and record/upload.
-- [`src/PlaybackLab.tsx`](src/PlaybackLab.tsx) — standalone playback by `videoId`.
-- [`src/ImplementationGuide.tsx`](src/ImplementationGuide.tsx) — copyable integration path.
+The Partner example is implemented in [`plain.html`](plain.html) with browser JavaScript and
+the SDK's public CDN build. It does not require React.
 
 Every workspace shares an **Activity Log**. It records public lifecycle events, SDK error
 codes, the current page origin, and the selected API environment. It intentionally never logs
@@ -32,15 +33,8 @@ sending a reproducible failure to support.
 
 ## Configure a test account
 
-Create `.env`:
-
-```env
-VITE_PACKIKO_API_BASE_URL=https://video-uat.packiko.com
-VITE_PACKIKO_PUBLIC_KEY=pk_your_key
-```
-
-The page origin must be registered for that key. Values from `.env` prefill the page, but a
-publishable test key can also be entered directly in **Record & Upload**.
+Open **Record & Upload** and enter the Video API URL, publishable key, order reference, and
+optional Partner values directly in the page. The page origin must be registered for that key.
 
 Origin matching is exact: `http://127.0.0.1:5401` and `http://localhost:5401` are different
 origins. A `network_error` or `origin_not_allowed` entry includes the current origin so it can
@@ -64,71 +58,69 @@ current user. An OIDC `clientId` belongs to Mode B.
 
 ### Optional Mode B (OIDC)
 
-Mode B lets the Partner try its normal OIDC login. Configure public browser-client values only:
-
-```env
-VITE_PACKIKO_MODE_B_PUBLIC_KEY=pk_your_mode_b_key
-VITE_PACKIKO_KEYCLOAK_URL=https://login.example.com
-VITE_PACKIKO_KEYCLOAK_REALM=your-realm
-VITE_PACKIKO_KEYCLOAK_CLIENT_ID=your-public-client-id
-```
+Mode B lets the Partner try its normal OIDC login. Enter the Mode B publishable key, IdP URL,
+realm, and public browser client ID in **Record & Upload**.
 
 The client ID is not a secret. The Video test key must be provisioned for the same issuer/JWKS,
 and the Example origin must be accepted by both the IdP client and the Video key.
 
-## React integration
+## Vanilla JavaScript integration
 
-```tsx
-import { useRecorder } from '@packiko/video-sdk/react'
+Load the public browser build and use only its exported API:
 
-const video = useRecorder({
-  apiBaseUrl: VIDEO_API_URL,
-  publicKey: VIDEO_PUBLIC_KEY,
-  orderRef: order.id,
-  upload: {
-    externalUserRef: currentUser.id, // Mode A only
-    merchantId: order.merchantId,    // optional
-  },
-})
+```html
+<script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
+<script>
+  const { createPlayer, createRecorder } = PackikoVideo
+  const config = { apiBaseUrl, publicKey }
 
-video.start()
-await video.stop()
+  async function recordEvidence() {
+    const recorder = createRecorder(config)
+    const capture = await recorder.capture()
+    preview.srcObject = capture.previewStream
+    capture.start()
 
-if (video.state === 'uploaded' && video.videoId) {
-  await partnerApi.saveVideoId(order.id, video.videoId)
-}
+    // Call this part from the Partner's Stop button.
+    const blob = await capture.stop()
+    capture.dispose()
+
+    const { videoId } = await recorder.upload(blob, {
+      orderRef,
+      externalUserRef,
+      merchantId,
+    }).promise
+    return videoId
+  }
+</script>
 ```
-
-Render `video.previewStream` in a muted `<video>` element and use `video.progress`,
-`video.state`, and `video.error` for user feedback.
 
 For Mode B, add the Partner's existing token provider:
 
-```ts
-getUserToken: () => auth.getAccessToken()
+```js
+const config = {
+  apiBaseUrl,
+  publicKey,
+  getUserToken: () => partnerAuth.getAccessToken(),
+}
 ```
 
 ## Partner attach
 
 The SDK returns `videoId`; it does not write the Partner's order database:
 
-```ts
-if (video.state === 'uploaded' && video.videoId) {
-  await partnerApi.attachVideo(order.id, { videoId: video.videoId })
-}
+```js
+await partnerApi.attachVideo(orderRef, { videoId })
 ```
 
 Make this backend operation idempotent, for example with a unique `(orderId, videoId)` key.
 
 ## Playback
 
-```ts
-import { createPlayer } from '@packiko/video-sdk'
-
-const player = createPlayer({ apiBaseUrl: VIDEO_API_URL, publicKey: VIDEO_PUBLIC_KEY })
+```js
+const player = createPlayer(config)
 const { url } = await player.resolvePlaybackUrl(videoId)
-
-return <video src={url} controls playsInline />
+video.src = url
+video.controls = true
 ```
 
 Use the returned URL in a standard `<video controls>` element. Request a fresh URL from the
@@ -159,15 +151,9 @@ Do not yet promise seamless continuation after route exit/offline, or recovery f
 or device failure during active recording. Those capabilities require later SDK work and are
 not represented as current behavior in this Example.
 
-## Vanilla JavaScript
+## Authentication in the Vanilla workspace
 
-Open [`plain.html`](plain.html) for the equivalent CDN example. It exposes only the public
-recording and playback calls needed by a non-React application. Serve it through the same
-Vite origin (`pnpm dev` → `/plain.html`); do not open it as `file://`, because that produces
-the `null` origin and cannot pass the Video API allowlist. The Vanilla page uses the same four
-workspace tabs and terminology as the React page, while its implementation remains framework-free.
-
-The Vanilla workspace supports both authentication paths interactively:
+The Partner workspace supports both authentication paths interactively:
 
 - **Mode A** accepts a publishable key and optional `externalUserRef`. It has no OIDC client ID.
 - **Mode B** accepts a Mode B publishable key plus public OIDC URL, realm, and client ID. It
@@ -177,3 +163,8 @@ The Vanilla workspace supports both authentication paths interactively:
 The OIDC client must allow the exact `/plain.html` redirect URI and page origin. No client secret
 belongs in this browser example. The page stores only public form values in `sessionStorage` and
 the Activity Log never prints the publishable key, access token, upload URL, or signed playback URL.
+
+## Internal React reference
+
+`/react.html` is retained for Packiko's internal comparison and SDK regression work. It is not
+the Partner implementation target and is not required for a Vanilla JavaScript integration.

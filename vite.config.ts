@@ -8,8 +8,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        react: 'index.html',
+        index: 'index.html',
         vanilla: 'plain.html',
+        react: 'react.html',
       },
     },
   },
