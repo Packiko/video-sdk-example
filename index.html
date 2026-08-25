@@ -1,12 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="th">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Packiko Video SDK Example</title>
+    <meta http-equiv="refresh" content="0; url=plain.html" />
+    <title>Packiko Video SDK Example - Vanilla JavaScript</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <p>กำลังเปิด <a href="plain.html">Vanilla JavaScript Example</a>...</p>
+    <script>
+      const target = new URL('plain.html', window.location.href);
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      window.location.replace(target);
+    </script>
   </body>
 </html>

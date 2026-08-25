@@ -1,211 +1,170 @@
 # Packiko Video SDK Example
 
-Demo integrating the Packiko video proof SDK end-to-end: **record → upload → process → playback**.
-Two integration paths from one repo:
+Partner-facing **Vanilla JavaScript** example for adding video evidence to an order flow. This
+repository documents only the public SDK contract that a Partner application needs to call.
 
-- **Path A — React (npm):** `@packiko/video-sdk` via GitHub Packages, bundled with Vite. See `src/Record.tsx`, `src/Playback.tsx`.
-- **Path B — vanilla (`<script>` CDN):** zero-build, `window.PackikoVideo` from R2. See `plain.html`.
+## Try it
 
-Both paths are **interactive walkthroughs** (built from real partner feedback — the raw
-examples were hard to follow):
-
-- The React app opens in **📖 Learn** — a 6-step guided wizard (setup → record+upload →
-  playback → durable enqueue → deferred attach → resilience), each step showing the exact
-  code, a plain-Thai explanation, and a live widget running it for real. **🎮 Playground**
-  is free-play: the demos beside a live **event log** narrating every SDK call and state
-  change with hints.
-- `plain.html` is the same walkthrough in vanilla JS: numbered accordion steps with code +
-  live widgets + the event log at the bottom.
-
-## Prerequisites
-
-### Origin registration
-Your page origin must be registered by ThaiCloud before integrating. Contact ThaiCloud with the
-origin you'll use (e.g. `http://localhost:5173` for local dev) to have it allowlisted.
-
-### Publishable key
-A `pk_...` key from your ThaiCloud tenant — publishable (safe in a browser bundle).
-
-### Auth modes — Mode A vs Mode B (optional)
-One question decides the mode: **does your login system use an OIDC IdP that publishes JWKS**
-(Keycloak, Auth0, Entra ID, …)?
-
-- **No / in-house auth** → **Mode A**: the `pk_` alone; you attest user identity yourself via
-  `external_user_ref`. This is what the demo runs by default. (Symmetric tokens — e.g. HS256 —
-  cannot be verified by the video service, so in-house token systems land here too.)
-- **Yes** → **Mode B**: add one config line — `getUserToken: () => yourAuth.getAccessToken()` —
-  and the SDK sends the JWT as `X-User-Token` on every request. The video service verifies
-  signature/issuer/expiry against your JWKS and binds each video to the verified `sub`.
-  ThaiCloud enables it per key with two values (your issuer + JWKS URL); no deploy. A Mode B key
-  is enforce-or-reject: a missing or bad token is always a 401, never a silent Mode A fallback.
-
-The app's **🔐 Auth tab** walks this choice interactively, with a live Keycloak login on the
-Mode B path (ThaiCloud UAT defaults are baked in; override with the `VITE_PACKIKO_MODE_B_*`
-env vars in `.env.example` to point at your own IdP). In the vanilla path the choice IS
-**`plain.html` step 1** — pick Mode A or Mode B first (no default), and the rest of the page
-follows: the matching config panel, a live Keycloak login on the Mode B side (keycloak-js via
-ESM CDN import, editable IdP fields), and the automatic key + `X-User-Token` switch for
-steps 2-4.
-
----
-
-## Path A — React (npm)
-
-> **Note:** installing `@packiko/video-sdk` requires Packiko org access (a `read:packages` token).
-> Anyone can read this repo as a reference, but `pnpm install` will 401 without that access.
-> No org access? Use **Path B** (vanilla) — it loads from the CDN with no install.
-
-1. **`.npmrc`** (already in repo) points the scope at GitHub Packages and reads a token from env:
-   ```
-   @packiko:registry=https://npm.pkg.github.com
-   //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-   ```
-2. **GitHub token** with scope `read:packages` and access to the `Packiko` org:
-   ```bash
-   gh auth refresh -s read:packages     # or create a PAT with read:packages
-   ```
-3. **Export the token** so `.npmrc` picks it up:
-   ```bash
-   # bash
-   export NODE_AUTH_TOKEN=$(gh auth token)
-   ```
-   ```powershell
-   # PowerShell
-   $env:NODE_AUTH_TOKEN = (gh auth token)
-   ```
-4. **Install:**
-   ```bash
-   pnpm install
-   ```
-5. **Configure env** — copy `.env.example` to `.env` (gitignored):
-   ```
-   VITE_PACKIKO_API_BASE_URL=https://video-uat.packiko.com   # no /v1 — the SDK appends it
-   VITE_PACKIKO_PUBLIC_KEY=pk_your_uat_test_key
-   ```
-6. **Run:**
-   ```bash
-   pnpm dev      # http://localhost:5173 — port must match the registered origin
-   ```
-
-### Usage (from `src/Record.tsx` / `src/Playback.tsx`)
-```ts
-// Record — the hook lives in the /react subpath, NOT the core entry:
-import { useRecorder } from '@packiko/video-sdk/react'
-
-const { previewStream, state, progress, videoId, error, start, stop } =
-  useRecorder({ apiBaseUrl, publicKey, orderRef,     // orderRef is required
-    upload: { merchantId,                            // merchantId optional (partner/ZORT) — omit for non-ZORT
-      items: [                                       // items optional (0.2.0) — snake_case wire shape, product data only
-        { sku: 'SKU-1', name: 'เสื้อยืด', qty: 2 },                 // required: sku, name, qty
-        { sku: 'SKU-2', name: 'แก้ว', qty: 1, weight_g: 350 },      // optional: image_url, weight_g (grams)
-      ] } })
-// bind previewStream -> <video>.srcObject; start()/stop(); videoId set when state === 'uploaded'
-
-// Playback — core entry:
-import { createPlayer } from '@packiko/video-sdk'
-
-const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
-// resolvePlaybackUrl polls until ready, returns { url, expiresAt } — destructure .url
+```bash
+pnpm install
+pnpm dev
 ```
 
----
+Open the URL printed by Vite. The root route redirects to `/plain.html`, which is the Partner
+implementation target. Do not open the file directly with `file://`; that produces the `null`
+origin and cannot pass the Video API allowlist.
 
-## Path B — vanilla (`<script>` CDN, zero-build)
+The application has four visible workspaces:
 
-1. Load the IIFE bundle (no install, no bundler):
-   ```html
-   <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
-   ```
-2. It exposes `window.PackikoVideo` → `createRecorder`, `createPlayer`, `PackikoError`.
-   This is the **core** build — there's **no `useRecorder` hook** (that ships only in the
-   `/react` npm subpath).
-3. Serve over **http** (origin must be registered) — `file://` has no origin and will fail.
-   The repo's `plain.html` is served by the same Vite server: `pnpm dev` → `http://localhost:5173/plain.html`.
+- **Camera demo:** record and play a local clip without a key or API request.
+- **Record & Upload:** enter test configuration in the page, record, upload, and receive a
+  `videoId`.
+- **Playback:** paste any `videoId` or use the ID returned by Record & Upload, then play it.
+- **Implementation:** read the complete public-API path for config, record, Partner attach,
+  and playback.
 
-### Usage (from `plain.html`)
-```js
-const { createRecorder, createPlayer, PackikoError } = PackikoVideo
+The Partner example is implemented in [`plain.html`](plain.html) with browser JavaScript and
+the SDK's public CDN build. It does not require React.
 
-// Record:
-const rec = createRecorder({ apiBaseUrl, publicKey })
-const cap = await rec.capture()              // acquires camera+mic
-video.srcObject = cap.previewStream
-cap.start()
-const blob = await cap.stop()                // finalized Blob
-const up = rec.upload(blob, { orderRef, merchantId })  // merchantId optional (partner/ZORT)
-up.on('progress', (p) => { /* p.ratio 0..1 */ })
-const { videoId } = await up.promise         // resolves on 'uploaded'
-cap.dispose()                                // release camera/mic
+Every workspace shares an **Activity Log**. It records public lifecycle events, SDK error
+codes, the current page origin, and the selected API environment. It intentionally never logs
+publishable keys, user tokens, upload URLs, or signed playback URLs. Use **Copy log** when
+sending a reproducible failure to support.
 
-// Playback:
-const { url } = await createPlayer({ apiBaseUrl, publicKey }).resolvePlaybackUrl(id)
-```
+## Configure a test account
 
-> Upgrading the SDK = bump the version in the script path (`v0.3.0` → `v0.3.1`).
+Open **Record & Upload** and enter the Video API URL, publishable key, order reference, and
+optional Partner values directly in the page. The page origin must be registered for that key.
 
----
+Origin matching is exact: `http://127.0.0.1:5401` and `http://localhost:5401` are different
+origins. A `network_error` or `origin_not_allowed` entry includes the current origin so it can
+be compared with the allowlist.
 
-## Durable queue + Background Sync (Learn steps 4-6 · Playground → Queue)
+### Mode A does not use an OIDC Client ID
 
-`@packiko/video-sdk@0.3.0` adds `createUploadQueue` — clips survive refresh,
-crash, and offline periods, and bind to your document later (deferred attach).
-The **Queue** tab demos the full loop with a simulated partner backend
-(`src/queue.ts`, `src/QueueDemo.tsx`):
+Mode A uses these values:
 
-1. Pick a clip — it enqueues under a fresh order **without** a document → the
-   job parks (waiting on `releaseWhen`).
-2. Click **Create document (nudge)** — `queue.nudge()` re-checks the gate and
-   the clip binds in that same cycle.
-3. Try: refresh mid-upload (resumes without re-uploading), go offline (retries
-   when back), kill the tab and reopen (jobs recover on load).
-
-[`public/sw.js`](public/sw.js) is the SDK README's Background Sync recipe
-verbatim — Chromium wakes it when connectivity returns and it messages open
-pages to `queue.drain()`. Safari/Firefox skip this silently; foreground
-triggers still do everything.
-
-## Flow
-
-```
-capture (getUserMedia / MediaRecorder)
-  → upload (3-step: token → blob PUT → confirm)
-  → server processing (transcode → ready)
-  → playback (poll until ready → signed playback URL)
-```
-
-## Error handling
-
-Every SDK error is a `PackikoError` — branch on `.code` (stable), not `.message`:
-
-| code | when |
+| Value | Purpose |
 |---|---|
-| `permission_denied` | camera/mic blocked |
-| `device_not_found` | no matching camera/mic |
-| `device_in_use` | device held by another app |
-| `no_supported_format` | no MediaRecorder MIME the browser supports |
-| `capture_failed` | capture aborted / MediaRecorder fault |
-| `sas_expired` | upload URL expired (403 on PUT) — `restart()` |
-| `upload_failed` | blob PUT exhausted retries |
-| `merchant_id_invalid` | `merchantId` fails `^[A-Za-z0-9_-]{1,128}$` (checked client-side before any request; also a server code) |
-| `items_invalid` | an `items` entry fails validation — missing/bad field, unknown key, or out-of-range value (checked client-side before any byte uploads; also a server code) |
-| `duplicate_item_sku` | two `items` entries share a `sku` after trimming (checked client-side before any byte uploads; also a server code) |
-| `rate_limited` | 429 from the API. During playback polling (`resolvePlaybackUrl`) the SDK backs off and retries automatically — a persistent rate limit there surfaces as `timeout`, not this code. Upload token/confirm 429s surface directly (no auto-retry) |
-| `network_error` | network request failed (no response / unreadable error body) |
-| `origin_not_allowed` | your origin isn't registered with ThaiCloud |
-| `video_not_found` | unknown videoId |
-| `video_terminal` | video reached `failed`/`orphaned`/`attached` — won't become playable |
-| `timeout` | still not ready after `maxWaitMs` |
+| `apiBaseUrl` | Video API environment |
+| `publicKey` | Identifies the Partner's Video account and registered origin |
+| `orderRef` | Partner order/document reference stored with the video |
+| `externalUserRef` | Optional Partner user/operator ID, attested by the Partner |
+| `merchantId` | Optional merchant identifier |
+
+There is no `clientId` field in the Mode A SDK contract. If the Partner calls its internal
+operator identifier a "client ID", map it to `externalUserRef` only when it identifies the
+current user. An OIDC `clientId` belongs to Mode B.
+
+### Optional Mode B (OIDC)
+
+Mode B lets the Partner try its normal OIDC login. Enter the Mode B publishable key, IdP URL,
+realm, and public browser client ID in **Record & Upload**.
+
+The client ID is not a secret. The Video test key must be provisioned for the same issuer/JWKS,
+and the Example origin must be accepted by both the IdP client and the Video key.
+
+## Vanilla JavaScript integration
+
+Load the public browser build and use only its exported API:
+
+```html
+<script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
+<script>
+  const { createPlayer, createRecorder } = PackikoVideo
+  const config = { apiBaseUrl, publicKey }
+
+  async function recordEvidence() {
+    const recorder = createRecorder(config)
+    const capture = await recorder.capture()
+    preview.srcObject = capture.previewStream
+    capture.start()
+
+    // Call this part from the Partner's Stop button.
+    const blob = await capture.stop()
+    capture.dispose()
+
+    const { videoId } = await recorder.upload(blob, {
+      orderRef,
+      externalUserRef,
+      merchantId,
+    }).promise
+    return videoId
+  }
+</script>
+```
+
+For Mode B, add the Partner's existing token provider:
 
 ```js
-try { await player.resolvePlaybackUrl(id) }
-catch (e) {
-  if (e instanceof PackikoError) { /* switch (e.code) */ }
+const config = {
+  apiBaseUrl,
+  publicKey,
+  getUserToken: () => partnerAuth.getAccessToken(),
 }
 ```
 
-## Troubleshooting
+## Partner attach
 
-| Symptom | Cause / fix |
-|---|---|
-| Upload/playback fails with an origin error (`origin_not_allowed` / `network_error`) | Contact ThaiCloud to confirm your origin is registered. |
-| `useRecorder` not found | Import from `@packiko/video-sdk/react`, not the core `@packiko/video-sdk`. |
+The SDK returns `videoId`; it does not write the Partner's order database:
+
+```js
+await partnerApi.attachVideo(orderRef, { videoId })
+```
+
+Make this backend operation idempotent, for example with a unique `(orderId, videoId)` key.
+
+## Playback
+
+```js
+const player = createPlayer(config)
+const { url } = await player.resolvePlaybackUrl(videoId)
+video.src = url
+video.controls = true
+```
+
+Use the returned URL in a standard `<video controls>` element. Request a fresh URL from the
+same `videoId` instead of storing the URL. The **Playback** workspace is a live version of this
+code and accepts a manually pasted ID, so recording a new clip is not required for every test.
+
+## Scope
+
+- The SDK handles camera capture, evidence submission, user-facing status, `videoId`, and
+  playback preparation.
+- Partner owns its order/document data and stores the returned `videoId`.
+- The SDK does not write to the Partner database. The Partner calls its own backend after a
+  successful `videoId` result.
+- The SDK is consumed as a black box. Its implementation design is intentionally outside this
+  public example.
+- This example does not depend on other Packiko products.
+- Production behavior must be verified with the Partner's registered origin and test key.
+
+## Guarantee status
+
+Available in the current SDK for the active-page flow:
+
+- record evidence
+- receive `videoId`
+- open playback
+
+Do not yet promise seamless continuation after route exit/offline, or recovery from a browser
+or device failure during active recording. Those capabilities require later SDK work and are
+not represented as current behavior in this Example.
+
+## Authentication in the Vanilla workspace
+
+The Partner workspace supports both authentication paths interactively:
+
+- **Mode A** accepts a publishable key and optional `externalUserRef`. It has no OIDC client ID.
+- **Mode B** accepts a Mode B publishable key plus public OIDC URL, realm, and client ID. It
+  loads the public Keycloak browser client, performs a PKCE redirect, and supplies the SDK with
+  `getUserToken()` for record/upload and playback.
+
+The OIDC client must allow the exact `/plain.html` redirect URI and page origin. No client secret
+belongs in this browser example. The page stores only public form values in `sessionStorage` and
+the Activity Log never prints the publishable key, access token, upload URL, or signed playback URL.
+
+## Internal React reference
+
+`/react.html` is retained for Packiko's internal comparison and SDK regression work. It is not
+the Partner implementation target and is not required for a Vanilla JavaScript integration.
