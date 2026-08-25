@@ -162,4 +162,7 @@ not represented as current behavior in this Example.
 ## Vanilla JavaScript
 
 Open [`plain.html`](plain.html) for the equivalent CDN example. It exposes only the public
-recording and playback calls needed by a non-React application.
+recording and playback calls needed by a non-React application. Serve it through the same
+Vite origin (`pnpm dev` → `/plain.html`); do not open it as `file://`, because that produces
+the `null` origin and cannot pass the Video API allowlist. The Vanilla page uses the same four
+workspace tabs and terminology as the React page, while its implementation remains framework-free.
