@@ -8,7 +8,11 @@ export default defineConfig({
   build: {
     target: 'es2022', // plain.html uses top-level await
     rollupOptions: {
-      input: { index: 'index.html', plain: 'plain.html' },
+      input: {
+        index: 'index.html',
+        vanilla: 'plain.html',
+        react: 'react.html',
+      },
     },
   },
 })
