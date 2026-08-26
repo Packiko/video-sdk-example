@@ -11,14 +11,22 @@ const snippets: Record<GuideTab, { title: string; copy: string; code: (authChoic
   config: {
     title: '1. ตั้งค่า SDK',
     copy: 'Mode A ไม่มี OIDC clientId ส่วน Mode B เพิ่ม token provider จากระบบ login ของ Partner',
-    code: (authChoice) => authChoice === 'a' ? `const videoConfig = {
+    code: (authChoice) => `// pnpm add @packiko/video-sdk   (ติดตั้งจาก GitHub Packages)
+import {
+  createUploadQueue,
+  createDurableRecorder,
+  createPlayer,
+} from '@packiko/video-sdk'
+import { useRecorder, useUploadQueue } from '@packiko/video-sdk/react'
+
+${authChoice === 'a' ? `const videoConfig = {
   apiBaseUrl: import.meta.env.VITE_VIDEO_API_URL,
   publicKey: import.meta.env.VITE_VIDEO_PUBLIC_KEY,
 }` : `const videoConfig = {
   apiBaseUrl: import.meta.env.VITE_VIDEO_API_URL,
   publicKey: import.meta.env.VITE_VIDEO_PUBLIC_KEY,
   getUserToken: () => partnerAuth.getAccessToken(),
-}`,
+}`}`,
   },
   durable: {
     title: '2. บันทึกแบบ durable (แนะนำ)',
