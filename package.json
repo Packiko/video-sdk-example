@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@packiko/video-sdk": "^0.3.0",
+    "@packiko/video-sdk": "^0.3.1",
     "keycloak-js": "^26.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

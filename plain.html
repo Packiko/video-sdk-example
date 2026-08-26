@@ -36,7 +36,7 @@
     .log-entry.error { color: #ff9ca9 }
     .protocol-warning { margin-top: 16px; padding: 12px 14px; border: 1px solid #e2b764; border-left: 4px solid #c88918; border-radius: 6px; background: #fff8e7; color: #70500e; line-height: 1.5 }
     .protocol-warning[hidden] { display: none }
-    .workspace-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #c6d3dd; border-radius: 7px; background: #e7edf2 }
+    .workspace-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #c6d3dd; border-radius: 7px; background: #e7edf2 }
     .workspace-tabs button { min-height: 44px; border: 0; border-radius: 5px; background: transparent; color: #5c6f82 }
     .workspace-tabs button.active { background: #fff; color: #075f99; box-shadow: 0 1px 2px rgb(28 55 77 / 16%); font-weight: 700 }
     .workspace-panel { display: none }
@@ -67,6 +67,7 @@
     <nav class="workspace-tabs" aria-label="พื้นที่ทดลอง Video SDK">
       <button class="active" data-panel="demoPanel">Camera demo</button>
       <button data-panel="recordPanel">Record & Upload</button>
+      <button data-panel="durablePanel">Durable upload</button>
       <button data-panel="playbackPanel">Playback</button>
       <button data-panel="implementationPanel">Implementation</button>
     </nav>
@@ -126,6 +127,21 @@
       <p class="error" id="liveError"></p>
     </section>
 
+    <section class="workspace-panel" id="durablePanel">
+      <span class="path-label">Durable upload</span><h2>อัดแบบคลิปไม่หาย แม้ออกจากหน้าจอ</h2>
+      <p>เส้นทางแนะนำ: คลิปเข้าคิวใน browser ก่อน แล้ว SDK อัปโหลดต่อให้เองแม้เน็ตหลุดหรือ refresh ใช้ key, orderRef และ metadata จากแท็บ Record & Upload</p>
+      <video id="durableVideo" autoplay muted playsinline></video>
+      <div class="row">
+        <button class="record" id="durableStart">Start — เปิดกล้องและอัดในคำสั่งเดียว</button>
+        <button class="primary" id="durableStop" disabled>Stop — durable ทันที</button>
+        <button id="durableLeave" disabled>จำลองออกจากหน้าจอ (dispose)</button>
+      </div>
+      <p class="status" id="durableStatus">คิว resume งานค้างให้อัตโนมัติเมื่อสร้างคิว</p>
+      <p class="error" id="durableError"></p>
+      <div id="durableJobs"></div>
+      <p class="info">refresh หลังกด Stop สำเร็จ = ปลอดภัย · refresh ระหว่างอัด = best effort เท่านั้น · ไฟดับกลางอัด = คลิปหาย</p>
+    </section>
+
     <section class="workspace-panel" id="playbackPanel">
       <span class="path-label">Playback Lab</span><h2>ใส่ videoId แล้วเปิดวิดีโอจริง</h2>
       <p>ใส่ videoId ที่มีอยู่แล้ว หรือใช้ ID ที่ได้จาก Record & Upload โดยไม่ต้องอัดคลิปใหม่ทุกครั้ง</p>
@@ -167,9 +183,9 @@ video.src = url</code></pre>
     </section>
   </main>
 
-  <script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
+  <script src="https://sdk-uat.packiko.com/video/v0.3.1/index.global.js"></script>
   <script>
-    const { createPlayer, createRecorder, describeError, PackikoError } = PackikoVideo;
+    const { createPlayer, createRecorder, createUploadQueue, createDurableRecorder, describeError, PackikoError } = PackikoVideo;
     const byId = (id) => document.getElementById(id);
     const errorText = (error) => error instanceof PackikoError ? describeError(error.code, 'th') : String(error);
     const logEntries = [];
@@ -191,6 +207,7 @@ video.src = url</code></pre>
         sessionStorage.setItem('plainActivePanel', button.dataset.panel);
         document.querySelectorAll('.workspace-tabs button').forEach((item) => item.classList.toggle('active', item === button));
         document.querySelectorAll('.workspace-panel').forEach((panel) => panel.classList.toggle('active', panel.id === button.dataset.panel));
+        if (button.dataset.panel === 'durablePanel') initDurableQueue();
       });
     });
     document.querySelectorAll('.workspace-panel').forEach((panel) => panel.classList.toggle('active', panel.id === savedPanel));
@@ -415,6 +432,134 @@ video.src = url`;
       }
     });
 
+    // --- Durable upload (เส้นทางแนะนำ): queue + durable recorder ---
+    let durableQueue = null;
+    let durableRecorder = null;
+    let durableSession = null;
+    const durableStageLabel = { queued: 'รออัปโหลด', uploading: 'กำลังอัปโหลด', uploaded: 'อัปโหลดแล้ว', attaching: 'กำลังผูกเอกสาร', retry: 'รอลองใหม่', review: 'ต้องตรวจสอบ' };
+
+    function renderDurableJobs() {
+      if (!durableQueue) return;
+      const snapshot = durableQueue.getSnapshot();
+      const box = byId('durableJobs');
+      box.textContent = '';
+      if (snapshot.storageError) byId('durableError').textContent = 'Local storage มีปัญหา: ' + snapshot.storageError;
+      if (!snapshot.hydrated) { box.textContent = 'กำลังอ่านคิวที่ค้างอยู่…'; return; }
+      if (!snapshot.jobs.length) { box.textContent = 'ไม่มีงานค้าง — คลิปที่เข้าคิวแล้วรอด refresh, ปิดเบราว์เซอร์, เน็ตหลุด และ crash'; return; }
+      for (const job of snapshot.jobs) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const text = document.createElement('span');
+        text.className = 'status';
+        text.textContent = durableStageLabel[job.stage] + ' · ' + job.orderRef
+          + (job.progress !== null && job.stage === 'uploading' ? ' · ' + Math.round(job.progress * 100) + '%' : '')
+          + (job.videoId ? ' · videoId ' + job.videoId : '');
+        row.appendChild(text);
+        if (job.stage === 'retry' || job.stage === 'review') {
+          const retryButton = document.createElement('button');
+          retryButton.textContent = 'ลองใหม่';
+          retryButton.addEventListener('click', () => void durableQueue.retry(job.id));
+          row.appendChild(retryButton);
+        }
+        const downloadButton = document.createElement('button');
+        downloadButton.textContent = 'ดาวน์โหลดคลิป';
+        downloadButton.addEventListener('click', () => durableQueue.download(job.id));
+        row.appendChild(downloadButton);
+        box.appendChild(row);
+      }
+    }
+
+    function initDurableQueue() {
+      if (durableQueue || configProblem()) return;
+      // ครั้งเดียวต่อแอป — สร้างแล้วคิว resume งานค้างจาก IndexedDB เอง
+      durableQueue = createUploadQueue(currentVideoConfig());
+      durableQueue.subscribe(renderDurableJobs);
+      durableQueue.onOutcome((outcome) => {
+        if (outcome.status === 'bound') log('Durable upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'videoId ' + outcome.videoId, 'success');
+        else log('Durable upload', 'งานในคิวไม่สำเร็จ', outcome.code + (outcome.message ? ' · ' + outcome.message : ''), 'error');
+      });
+      renderDurableJobs();
+    }
+
+    function resetDurableButtons() {
+      byId('durableVideo').srcObject = null;
+      byId('durableStart').disabled = false;
+      byId('durableStop').disabled = true;
+      byId('durableLeave').disabled = true;
+    }
+
+    byId('durableStart').addEventListener('click', async () => {
+      byId('durableError').textContent = '';
+      const problem = configProblem();
+      if (problem) { byId('durableError').textContent = problem; return; }
+      initDurableQueue();
+      if (!durableRecorder) {
+        durableRecorder = createDurableRecorder({
+          queue: durableQueue,
+          getContext: () => ({
+            orderRef: byId('orderRef').value.trim(),
+            context: { source: 'plain-durable-demo' },
+            upload: {
+              ...(authMode() === 'a' && byId('externalUserRef').value.trim() ? { externalUserRef: byId('externalUserRef').value.trim() } : {}),
+              ...(byId('merchantId').value.trim() ? { merchantId: byId('merchantId').value.trim() } : {}),
+            },
+          }),
+        });
+      }
+      byId('durableStatus').textContent = 'Opening camera';
+      try {
+        durableSession = await durableRecorder.start();
+        byId('durableVideo').srcObject = durableSession.previewStream;
+        byId('durableStart').disabled = true;
+        byId('durableStop').disabled = false;
+        byId('durableLeave').disabled = false;
+        byId('durableStatus').textContent = 'Recording — context ถูก freeze ที่จุดนี้';
+        log('Durable upload', 'Recording started');
+      } catch (error) {
+        byId('durableError').textContent = errorText(error);
+        byId('durableStatus').textContent = 'Could not start';
+        log('Durable upload', 'Start failed', errorText(error), 'error');
+      }
+    });
+
+    byId('durableStop').addEventListener('click', async () => {
+      if (!durableSession) return;
+      byId('durableStop').disabled = true;
+      byId('durableLeave').disabled = true;
+      byId('durableStatus').textContent = 'Finalizing';
+      try {
+        const job = await durableSession.stop();
+        byId('durableStatus').textContent = 'คลิป durable แล้ว ไม่ต้องใช้เน็ต — อัปโหลดต่อให้เองเบื้องหลัง';
+        log('Durable upload', 'Clip durable — upload continues in background', 'job ' + job.id, 'success');
+      } catch (error) {
+        // Storage ปฏิเสธคลิป: Blob แนบมากับ error ให้เสนอเป็นไฟล์ดาวน์โหลดแทน
+        if (error && error.blob) {
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(error.blob);
+          link.download = (byId('orderRef').value.trim() || 'clip') + '.webm';
+          link.click();
+          URL.revokeObjectURL(link.href);
+        }
+        byId('durableError').textContent = errorText(error);
+        byId('durableStatus').textContent = 'บันทึกลง storage ไม่สำเร็จ';
+        log('Durable upload', 'Storage failed — clip offered as download', errorText(error), 'error');
+      }
+      durableSession = null;
+      resetDurableButtons();
+    });
+
+    byId('durableLeave').addEventListener('click', () => {
+      // จำลอง route change กลางอัด: dispose() finalize คลิปเข้าคิวให้ ไม่ทิ้ง
+      durableRecorder.dispose();
+      durableRecorder = null;
+      durableSession = null;
+      resetDurableButtons();
+      byId('durableStatus').textContent = 'ออกจากหน้าจอแล้ว — คลิปที่อัดค้างถูกกู้เข้าคิว ดูรายการด้านล่าง';
+      log('Durable upload', 'Left screen mid-recording — dispose() rescued the clip into the queue', '', 'success');
+    });
+
+    if (savedPanel === 'durablePanel') initDurableQueue();
+
     byId('copyLog').addEventListener('click', () => navigator.clipboard.writeText(logEntries.map((entry) => `[${entry.at}] [${entry.scope}] ${entry.message}${entry.detail ? ' · ' + entry.detail : ''}`).join('\n')));
     byId('clearLog').addEventListener('click', () => { logEntries.length = 0; byId('activityLog').textContent = ''; });
     log('Example', 'Ready', 'origin ' + location.origin);
@@ -422,6 +567,7 @@ video.src = url`;
     window.addEventListener('pagehide', () => {
       disposeDemo();
       disposeLive();
+      durableRecorder?.dispose();
       if (demoUrl) URL.revokeObjectURL(demoUrl);
     });
   </script>
