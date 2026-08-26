@@ -155,24 +155,9 @@
 
     <section class="workspace-panel" id="implementationPanel">
       <span class="path-label">Implementation</span><h2>โค้ดที่ Partner ต้องเขียน</h2>
-      <p>ลำดับการเชื่อมต่อ: config → record/upload → Partner attach → playback</p>
-      <pre><code id="implementationCode">const config = { apiBaseUrl, publicKey }
-const recorder = createRecorder(config)
-const capture = await recorder.capture()
-capture.start()
-
-const clip = await capture.stop()
-const { videoId } = await recorder.upload(clip, {
-  orderRef,
-  externalUserRef,
-  merchantId,
-}).promise
-
-await partnerApi.saveVideoId(orderRef, videoId)
-
-const { url } = await createPlayer({ apiBaseUrl, publicKey })
-  .resolvePlaybackUrl(videoId)
-video.src = url</code></pre>
+      <p>หน้า HTML สมบูรณ์หนึ่งหน้า: โหลด SDK ด้วย <code>&lt;script&gt;</code> → สร้าง queue → durable recorder → attach → playback · สลับ Mode A/B ในแท็บ Record &amp; Upload แล้วโค้ดนี้เปลี่ยนตาม</p>
+      <div class="row"><button id="copyImplementation">Copy code</button></div>
+      <pre><code id="implementationCode"></code></pre>
       <p>The SDK is treated as a black box. Store the returned <code>videoId</code> with your document.</p>
     </section>
 
@@ -256,69 +241,74 @@ video.src = url</code></pre>
       byId('liveStatus').textContent = mode === 'a'
         ? (byId('publicKey').value.trim() ? 'Mode A · Ready' : 'Mode A · Enter your key to begin')
         : (window.PackikoPlainModeB?.active ? 'Mode B · Ready' : 'Mode B · Login OIDC to begin');
-      byId('implementationCode').textContent = mode === 'a'
-        ? `const config = { apiBaseUrl, publicKey }
-
-// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
-const queue = createUploadQueue(config, {
-  attach: async (job) => {
-    await partnerApi.attachVideo(job.orderRef, { videoId: job.videoId })
-    return { status: 'ok' }
-  },
-})
-queue.onOutcome((outcome) => {
-  if (outcome.status === 'bound') showToast('อัปโหลดสำเร็จ', outcome.videoId)
-})
-
-const recorder = createDurableRecorder({
-  queue,
-  getContext: () => ({
-    orderRef,
-    context: { orderRef },
-    upload: { externalUserRef, merchantId },
-  }),
-})
-
-const session = await recorder.start()
-video.srcObject = session.previewStream
-await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
-recorder.dispose()  // เรียกจาก cleanup ได้ เรียกซ้ำได้
-
-const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
-video.src = url`
+      const configSnippet = mode === 'a'
+        ? `const config = {
+    apiBaseUrl: 'https://video-uat.packiko.com',
+    publicKey: 'pk_uat_...',   // Mode A: publishable key ระบุบัญชี Video
+  }`
         : `const config = {
-  apiBaseUrl,
-  publicKey,
-  getUserToken: () => partnerAuth.getAccessToken(),
-}
+    apiBaseUrl: 'https://video-uat.packiko.com',
+    publicKey: 'pk_uat_...',
+    // Mode B: token จากระบบ login ของคุณ — SDK เรียกใหม่เองทุก request
+    getUserToken: () => partnerAuth.getAccessToken(),
+  }`;
+      const uploadSnippet = mode === 'a'
+        ? `upload: { externalUserRef: 'user-001', merchantId: 'shop-001' },`
+        : `upload: { merchantId: 'shop-001' },  // Mode B ระบุ user จาก token ไม่ใช้ externalUserRef`;
+      byId('implementationCode').textContent = `<!doctype html>
+<video id="preview" autoplay muted playsinline></video>
+<button id="start">เริ่มอัด</button> <button id="stop">หยุด</button>
 
-// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
-const queue = createUploadQueue(config, {
-  attach: async (job) => {
-    await partnerApi.attachVideo(job.orderRef, { videoId: job.videoId })
-    return { status: 'ok' }
-  },
-})
-queue.onOutcome((outcome) => {
-  if (outcome.status === 'bound') showToast('อัปโหลดสำเร็จ', outcome.videoId)
-})
+<!-- UAT · บน production เปลี่ยน host เป็น sdk.packiko.com -->
+<script src="https://sdk-uat.packiko.com/video/v0.3.1/index.global.js"><\/script>
+<script>
+  const { createUploadQueue, createDurableRecorder, createPlayer } = PackikoVideo
 
-const recorder = createDurableRecorder({
-  queue,
-  getContext: () => ({
-    orderRef,
-    context: { orderRef },
-    upload: { merchantId },
-  }),
-})
+  ${configSnippet}
 
-const session = await recorder.start()
-video.srcObject = session.previewStream
-await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
-recorder.dispose()  // เรียกจาก cleanup ได้ เรียกซ้ำได้
+  // สร้างครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ — คิว resume งานที่ค้างให้เองตอนเปิดหน้า
+  const queue = createUploadQueue(config, {
+    attach: async (job) => {
+      // backend ของคุณ: ผูก videoId กับออเดอร์ (ต้อง idempotent — คิวอาจเรียกซ้ำหลัง crash)
+      await fetch('/api/orders/' + job.orderRef + '/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: job.videoId }),
+      })
+      return { status: 'ok' }
+    },
+  })
+  queue.onOutcome((outcome) => {
+    // ยิงแม้หน้าจอที่อัดถูกปิดไปแล้ว — ใช้ทำ toast/status tray
+    if (outcome.status === 'bound') openPlayback(outcome.videoId)
+  })
 
-const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
-video.src = url`;
+  const recorder = createDurableRecorder({
+    queue,
+    getContext: () => ({
+      orderRef: 'order-001',
+      context: { orderRef: 'order-001' },
+      ${uploadSnippet}
+    }),
+  })
+
+  let session
+  document.getElementById('start').onclick = async () => {
+    session = await recorder.start()
+    document.getElementById('preview').srcObject = session.previewStream
+  }
+  document.getElementById('stop').onclick = async () => {
+    await session.stop()   // durable ตรงนี้ ไม่ต้องใช้เน็ต — อัปโหลดต่อเบื้องหลัง
+  }
+  // ออกจากหน้ากลางอัด: dispose() กู้คลิปเข้าคิวให้ ไม่ทิ้ง
+  addEventListener('pagehide', () => recorder.dispose())
+
+  async function openPlayback(videoId) {
+    const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
+    const v = document.getElementById('preview')
+    v.srcObject = null; v.src = url; v.controls = true; v.muted = false
+  }
+<\/script>`;
     }
     window.renderPlainAuthMode = renderAuthMode;
     window.logPlainEvent = log;
@@ -581,6 +571,12 @@ video.src = url`;
     });
 
     if (savedPanel === 'durablePanel') initDurableQueue();
+
+    byId('copyImplementation').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(byId('implementationCode').textContent);
+      byId('copyImplementation').textContent = 'Copied ✓';
+      setTimeout(() => { byId('copyImplementation').textContent = 'Copy code'; }, 1500);
+    });
 
     byId('copyLog').addEventListener('click', () => navigator.clipboard.writeText(logEntries.map((entry) => `[${entry.at}] [${entry.scope}] ${entry.message}${entry.detail ? ' · ' + entry.detail : ''}`).join('\n')));
     byId('clearLog').addEventListener('click', () => { logEntries.length = 0; byId('activityLog').textContent = ''; });
