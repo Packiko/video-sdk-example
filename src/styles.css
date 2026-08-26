@@ -20,7 +20,7 @@ code, pre { font-family: "Cascadia Code", Consolas, monospace; }
 .hero span, .section-title span, .setup > span { color: #0a659f; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .hero h1 { margin: 4px 0 8px; font-size: 36px; line-height: 1.18; letter-spacing: 0; }
 .hero p { margin: 0; color: #627487; line-height: 1.55; }
-.workspace-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #c6d3dd; border-radius: 7px; background: #e7edf2; }
+.workspace-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #c6d3dd; border-radius: 7px; background: #e7edf2; }
 .workspace-tabs button { min-height: 44px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: #5c6f82; cursor: pointer; }
 .workspace-tabs button.active { background: #fff; color: #075f99; box-shadow: 0 1px 2px rgb(28 55 77 / 16%); font-weight: 700; }
 

@@ -3,11 +3,12 @@ import { createRecorder, describeError, PackikoError, type CaptureHandle } from 
 import { useRecorder } from '@packiko/video-sdk/react'
 import { ActivityLog, type ActivityEntry, type ActivityLevel } from './ActivityLog'
 import { authInitError, isAuthenticated, login, logout, modeB, modeBConfigured, subject } from './auth'
+import { DurableLab } from './DurableLab'
 import { ImplementationGuide } from './ImplementationGuide'
 import { PlaybackLab, type PlaybackConfig } from './PlaybackLab'
 import { modeAConfig, sdkConfig } from './sdk'
 
-type View = 'demo' | 'record' | 'playback' | 'implement'
+type View = 'demo' | 'record' | 'durable' | 'playback' | 'implement'
 type AuthChoice = 'a' | 'b'
 type DemoState = 'idle' | 'opening' | 'ready' | 'recording' | 'saving' | 'complete' | 'error'
 
@@ -302,6 +303,7 @@ export default function RecorderLab() {
       <nav className="workspace-tabs" aria-label="พื้นที่ทดลอง Video SDK">
         <button className={view === 'demo' ? 'active' : ''} onClick={() => setView('demo')}>Camera demo</button>
         <button className={view === 'record' ? 'active' : ''} onClick={() => setView('record')}>Record & Upload</button>
+        <button className={view === 'durable' ? 'active' : ''} onClick={() => setView('durable')}>Durable upload</button>
         <button className={view === 'playback' ? 'active' : ''} onClick={() => setView('playback')}>Playback</button>
         <button className={view === 'implement' ? 'active' : ''} onClick={() => setView('implement')}>Implementation</button>
       </nav>
@@ -310,6 +312,12 @@ export default function RecorderLab() {
         <>
           <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} onEvent={logEvent} />
           {configured ? <IntegrationRecorder key={`${authChoice}:${orderRef}:${publicKey}`} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} config={config} onVideoId={setLastVideoId} onOpenPlayback={() => setView('playback')} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Record & Upload</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
+        </>
+      )}
+      {view === 'durable' && (
+        <>
+          <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} onEvent={logEvent} />
+          {configured ? <DurableLab key={`${authChoice}:${orderRef}:${publicKey}`} config={config} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Durable upload</span><h2>อัดแบบคลิปไม่หาย</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
         </>
       )}
       {view === 'playback' && <PlaybackLab config={config} initialVideoId={lastVideoId} authLabel={authChoice === 'a' ? 'Mode A' : 'Mode B'} onOpenSetup={() => setView('record')} onEvent={logEvent} />}

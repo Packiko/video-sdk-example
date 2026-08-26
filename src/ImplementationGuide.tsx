@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 type AuthChoice = 'a' | 'b'
-type GuideTab = 'config' | 'record' | 'attach' | 'playback'
+type GuideTab = 'config' | 'record' | 'durable' | 'attach' | 'playback'
 
 interface ImplementationGuideProps {
   authChoice: AuthChoice
@@ -37,6 +37,33 @@ await video.stop()
 
 // รอ video.state === 'uploaded'
 // แล้วอ่าน video.videoId`,
+  },
+  durable: {
+    title: '2b. เส้นทางแนะนำ: Durable upload',
+    copy: 'คลิปที่เข้าคิวแล้วรอด refresh, ปิดเบราว์เซอร์, เน็ตหลุด และ crash — และ dispose() กู้คลิปที่อัดค้างตอนออกจากหน้าจอ',
+    code: () => `// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
+const queue = createUploadQueue(videoConfig, {
+  attach: async (job) => {
+    await partnerApi.attachVideo(job.context.orderId, {
+      videoId: job.videoId,
+    })
+    return { status: 'ok' }
+  },
+})
+
+const recorder = createDurableRecorder({
+  queue,
+  getContext: () => ({
+    orderRef: order.reference,
+    context: { orderId: order.id },
+  }),
+})
+
+const session = await recorder.start()
+videoEl.srcObject = session.previewStream
+await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
+
+recorder.dispose() // เรียกจาก route cleanup ได้ เรียกซ้ำได้`,
   },
   attach: {
     title: '3. ผูกกับออเดอร์ของ Partner',
