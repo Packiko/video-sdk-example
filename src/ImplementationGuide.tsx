@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 type AuthChoice = 'a' | 'b'
-type GuideTab = 'config' | 'record' | 'durable' | 'attach' | 'playback'
+type GuideTab = 'config' | 'durable' | 'record' | 'attach' | 'playback'
 
 interface ImplementationGuideProps {
   authChoice: AuthChoice
@@ -20,26 +20,8 @@ const snippets: Record<GuideTab, { title: string; copy: string; code: (authChoic
   getUserToken: () => partnerAuth.getAccessToken(),
 }`,
   },
-  record: {
-    title: '2. บันทึกและรับ videoId',
-    copy: 'React hook ดูแลกล้อง สถานะ upload และคืน videoId เมื่อ Video API ยืนยันสำเร็จ',
-    code: (authChoice) => `const video = useRecorder({
-  ...videoConfig,
-  orderRef: order.reference,
-  upload: {${authChoice === 'a' ? `
-    externalUserRef: currentUser.id,` : ''}
-    merchantId: order.merchantId,
-  },
-})
-
-video.start()
-await video.stop()
-
-// รอ video.state === 'uploaded'
-// แล้วอ่าน video.videoId`,
-  },
   durable: {
-    title: '2b. เส้นทางแนะนำ: Durable upload',
+    title: '2. บันทึกแบบ durable (แนะนำ)',
     copy: 'คลิปที่เข้าคิวแล้วรอด refresh, ปิดเบราว์เซอร์, เน็ตหลุด และ crash — และ dispose() กู้คลิปที่อัดค้างตอนออกจากหน้าจอ',
     code: () => `// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
 const queue = createUploadQueue(videoConfig, {
@@ -64,6 +46,24 @@ videoEl.srcObject = session.previewStream
 await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
 
 recorder.dispose() // เรียกจาก route cleanup ได้ เรียกซ้ำได้`,
+  },
+  record: {
+    title: '2b. ทางเลือก: Direct upload',
+    copy: 'React hook ดูแลกล้อง สถานะ upload และคืน videoId เมื่อ Video API ยืนยันสำเร็จ — จบในหน้าเดียวแต่ไม่รอดการออกจากหน้าจอกลางอัด',
+    code: (authChoice) => `const video = useRecorder({
+  ...videoConfig,
+  orderRef: order.reference,
+  upload: {${authChoice === 'a' ? `
+    externalUserRef: currentUser.id,` : ''}
+    merchantId: order.merchantId,
+  },
+})
+
+video.start()
+await video.stop()
+
+// รอ video.state === 'uploaded'
+// แล้วอ่าน video.videoId`,
   },
   attach: {
     title: '3. ผูกกับออเดอร์ของ Partner',

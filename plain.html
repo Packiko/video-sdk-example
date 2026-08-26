@@ -66,8 +66,8 @@
     <div class="hero"><small>Partner SDK workspace · Vanilla JavaScript</small><h1>ทดลองและนำ Video SDK ไปใช้จริง</h1><p>ตัวอย่างสำหรับ Partner โดยใช้ public SDK calls และไม่ต้องติดตั้ง React</p></div>
     <nav class="workspace-tabs" aria-label="พื้นที่ทดลอง Video SDK">
       <button class="active" data-panel="demoPanel">Camera demo</button>
-      <button data-panel="recordPanel">Record & Upload</button>
-      <button data-panel="durablePanel">Durable upload</button>
+      <button data-panel="durablePanel">Record & Upload</button>
+      <button data-panel="recordPanel">Direct upload</button>
       <button data-panel="playbackPanel">Playback</button>
       <button data-panel="implementationPanel">Implementation</button>
     </nav>
@@ -86,7 +86,23 @@
     </section>
 
     <section class="workspace-panel" id="recordPanel">
-      <span class="path-label">Record & Upload</span><h2>เลือก Mode A หรือ Mode B แล้วบันทึกหลักฐาน</h2>
+      <span class="path-label">Direct upload</span><h2>อัปโหลดตรง — รอผลจบในหน้าเดียว</h2>
+      <p>ใช้ key, orderRef และ metadata ชุดเดียวกับแท็บ Record & Upload · เส้นนี้ต้องออนไลน์ตอนอัปโหลด และไม่รอดการออกจากหน้าจอกลางอัด</p>
+      <video id="liveVideo" autoplay muted playsinline></video>
+      <div class="row">
+        <button class="primary" id="liveOpen">Open camera</button>
+        <button class="record" id="liveStart" disabled>Start</button>
+        <button class="primary" id="liveStop" disabled>Stop and save</button>
+        <button id="livePlay" disabled>Open video</button>
+      </div>
+      <p class="status" id="liveStatus">Mode A · Enter your key to begin</p>
+      <p class="result" id="liveResult"></p>
+      <p class="error" id="liveError"></p>
+    </section>
+
+    <section class="workspace-panel" id="durablePanel">
+      <span class="path-label">Record & Upload</span><h2>อัดแบบคลิปไม่หาย แม้ออกจากหน้าจอ</h2>
+      <p>เส้นทางแนะนำ: คลิปเข้าคิวใน browser ก่อน แล้ว SDK อัปโหลดต่อให้เองแม้เน็ตหลุดหรือ refresh</p>
       <div class="auth-switch" aria-label="Authentication mode">
         <button class="active" id="modeABtn">Mode A · Partner attests user</button>
         <button id="modeBBtn">Mode B · OIDC login</button>
@@ -115,21 +131,6 @@
       <label>Video API URL<input id="apiUrl" value="https://video-uat.packiko.com" /></label>
       <label>Order reference<input id="orderRef" value="partner-order-001" /></label>
       <label>Merchant ID<input id="merchantId" placeholder="optional" /></label>
-      <video id="liveVideo" autoplay muted playsinline></video>
-      <div class="row">
-        <button class="primary" id="liveOpen">Open camera</button>
-        <button class="record" id="liveStart" disabled>Start</button>
-        <button class="primary" id="liveStop" disabled>Stop and save</button>
-        <button id="livePlay" disabled>Open video</button>
-      </div>
-      <p class="status" id="liveStatus">Mode A · Enter your key to begin</p>
-      <p class="result" id="liveResult"></p>
-      <p class="error" id="liveError"></p>
-    </section>
-
-    <section class="workspace-panel" id="durablePanel">
-      <span class="path-label">Durable upload</span><h2>อัดแบบคลิปไม่หาย แม้ออกจากหน้าจอ</h2>
-      <p>เส้นทางแนะนำ: คลิปเข้าคิวใน browser ก่อน แล้ว SDK อัปโหลดต่อให้เองแม้เน็ตหลุดหรือ refresh ใช้ key, orderRef และ metadata จากแท็บ Record & Upload</p>
       <video id="durableVideo" autoplay muted playsinline></video>
       <div class="row">
         <button class="record" id="durableStart">Start — เปิดกล้องและอัดในคำสั่งเดียว</button>
@@ -257,21 +258,31 @@ video.src = url</code></pre>
         : (window.PackikoPlainModeB?.active ? 'Mode B · Ready' : 'Mode B · Login OIDC to begin');
       byId('implementationCode').textContent = mode === 'a'
         ? `const config = { apiBaseUrl, publicKey }
-const recorder = createRecorder(config)
-const capture = await recorder.capture()
 
-video.srcObject = capture.previewStream
-capture.start()
-const blob = await capture.stop()
-capture.dispose()
+// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
+const queue = createUploadQueue(config, {
+  attach: async (job) => {
+    await partnerApi.attachVideo(job.orderRef, { videoId: job.videoId })
+    return { status: 'ok' }
+  },
+})
+queue.onOutcome((outcome) => {
+  if (outcome.status === 'bound') showToast('อัปโหลดสำเร็จ', outcome.videoId)
+})
 
-const { videoId } = await recorder.upload(blob, {
-  orderRef,
-  externalUserRef,
-  merchantId,
-}).promise
+const recorder = createDurableRecorder({
+  queue,
+  getContext: () => ({
+    orderRef,
+    context: { orderRef },
+    upload: { externalUserRef, merchantId },
+  }),
+})
 
-await partnerApi.attachVideo(orderRef, { videoId })
+const session = await recorder.start()
+video.srcObject = session.previewStream
+await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
+recorder.dispose()  // เรียกจาก cleanup ได้ เรียกซ้ำได้
 
 const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
 video.src = url`
@@ -280,20 +291,31 @@ video.src = url`
   publicKey,
   getUserToken: () => partnerAuth.getAccessToken(),
 }
-const recorder = createRecorder(config)
-const capture = await recorder.capture()
 
-video.srcObject = capture.previewStream
-capture.start()
-const blob = await capture.stop()
-capture.dispose()
+// ครั้งเดียวต่อแอป ไม่ใช่ต่อหน้าจอ
+const queue = createUploadQueue(config, {
+  attach: async (job) => {
+    await partnerApi.attachVideo(job.orderRef, { videoId: job.videoId })
+    return { status: 'ok' }
+  },
+})
+queue.onOutcome((outcome) => {
+  if (outcome.status === 'bound') showToast('อัปโหลดสำเร็จ', outcome.videoId)
+})
 
-const { videoId } = await recorder.upload(blob, {
-  orderRef,
-  merchantId,
-}).promise
+const recorder = createDurableRecorder({
+  queue,
+  getContext: () => ({
+    orderRef,
+    context: { orderRef },
+    upload: { merchantId },
+  }),
+})
 
-await partnerApi.attachVideo(orderRef, { videoId })
+const session = await recorder.start()
+video.srcObject = session.previewStream
+await session.stop() // durable ตรงนี้ ไม่ต้องใช้เน็ต
+recorder.dispose()  // เรียกจาก cleanup ได้ เรียกซ้ำได้
 
 const { url } = await createPlayer(config).resolvePlaybackUrl(videoId)
 video.src = url`;
@@ -311,7 +333,7 @@ video.src = url`;
       byId(prefix + 'Open').addEventListener('click', async () => {
         byId(prefix + 'Error').textContent = '';
         byId(prefix + 'Status').textContent = 'Opening camera';
-        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Opening camera', location.origin);
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Opening camera', location.origin);
         try {
           recorder = getRecorder();
           capture?.dispose();
@@ -321,11 +343,11 @@ video.src = url`;
           byId(prefix + 'Video').controls = false;
           byId(prefix + 'Start').disabled = false;
           byId(prefix + 'Status').textContent = 'Camera ready';
-          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Camera ready', '', 'success');
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Camera ready', '', 'success');
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
           byId(prefix + 'Status').textContent = 'Could not open camera';
-          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Camera failed', errorText(error), 'error');
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Camera failed', errorText(error), 'error');
         }
       });
       byId(prefix + 'Start').addEventListener('click', () => {
@@ -334,13 +356,13 @@ video.src = url`;
         byId(prefix + 'Start').disabled = true;
         byId(prefix + 'Stop').disabled = false;
         byId(prefix + 'Status').textContent = 'Recording';
-        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Recording started');
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Recording started');
       });
       byId(prefix + 'Stop').addEventListener('click', async () => {
         if (!capture || capture.state !== 'recording') return;
         byId(prefix + 'Stop').disabled = true;
         byId(prefix + 'Status').textContent = 'Saving';
-        log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Recording stopped');
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Recording stopped');
         try {
           const clip = await capture.stop();
           capture.dispose();
@@ -349,7 +371,7 @@ video.src = url`;
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
           byId(prefix + 'Status').textContent = 'Not saved';
-          log(prefix === 'demo' ? 'Camera demo' : 'Record & Upload', 'Save failed', errorText(error), 'error');
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Save failed', errorText(error), 'error');
         }
       });
       return () => capture?.dispose();
