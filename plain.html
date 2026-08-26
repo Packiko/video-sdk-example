@@ -699,7 +699,7 @@ video.src = url`;
     byId('oidcLogin').addEventListener('click', async () => {
       const config = values();
       sessionStorage.setItem('plainAuthMode', 'b');
-      sessionStorage.setItem('plainActivePanel', 'recordPanel');
+      sessionStorage.setItem('plainActivePanel', 'durablePanel');
       sessionStorage.setItem('plainModeBConfig', JSON.stringify(config));
 
       if (initializedSignature && initializedSignature !== identitySignature(config)) {
