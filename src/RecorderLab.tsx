@@ -8,7 +8,7 @@ import { ImplementationGuide } from './ImplementationGuide'
 import { PlaybackLab, type PlaybackConfig } from './PlaybackLab'
 import { modeAConfig, sdkConfig } from './sdk'
 
-type View = 'demo' | 'record' | 'durable' | 'playback' | 'implement'
+type View = 'demo' | 'record' | 'direct' | 'playback' | 'implement'
 type AuthChoice = 'a' | 'b'
 type DemoState = 'idle' | 'opening' | 'ready' | 'recording' | 'saving' | 'complete' | 'error'
 
@@ -219,20 +219,20 @@ function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, on
   useEffect(() => {
     if (!videoId) return
     onVideoId(videoId)
-    onEvent('Record & Upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'success', `videoId ${videoId}`)
+    onEvent('Direct upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'success', `videoId ${videoId}`)
   }, [onEvent, onVideoId, videoId])
 
   useEffect(() => {
     if (previousStateRef.current === state) return
     previousStateRef.current = state
     const copy = state === 'recording' ? 'เริ่มบันทึกวิดีโอ' : state === 'stopped' ? 'หยุดบันทึกและเตรียมอัปโหลด' : state === 'uploading' ? 'กำลังอัปโหลดหลักฐาน' : null
-    if (copy) onEvent('Record & Upload', copy)
+    if (copy) onEvent('Direct upload', copy)
   }, [onEvent, state])
 
   useEffect(() => {
     if (!error) return
     const originHint = error.code === 'network_error' || error.code === 'origin_not_allowed' ? ` · ตรวจ allowlist ให้ตรง ${window.location.origin}` : ''
-    onEvent('Record & Upload', 'อัปโหลดไม่สำเร็จ', 'error', `${error.code} · ${messageFor(error)}${originHint}`)
+    onEvent('Direct upload', 'อัปโหลดไม่สำเร็จ', 'error', `${error.code} · ${messageFor(error)}${originHint}`)
   }, [error, onEvent])
 
   const label = state === 'recording' ? 'กำลังบันทึก' : state === 'uploading' || state === 'stopped'
@@ -241,7 +241,7 @@ function IntegrationRecorder({ orderRef, externalUserRef, merchantId, config, on
   return (
     <section className="recorder-panel step-panel">
       <div className="step-number">2</div>
-      <div className="section-title"><div><span>Record & Upload</span><h2>บันทึกหลักฐานไปยัง Video API</h2></div><strong className="status">{label}</strong></div>
+      <div className="section-title"><div><span>Direct upload</span><h2>บันทึกหลักฐานไปยัง Video API</h2></div><strong className="status">{label}</strong></div>
       <div className="video-stage"><video ref={previewRef} autoPlay muted playsInline aria-label="ภาพจากกล้องสำหรับบันทึกหลักฐาน" /></div>
       {progress !== null && state === 'uploading' && <progress value={progress} max={1} aria-label="กำลังอัปโหลดหลักฐาน" />}
       <div className="actions">
@@ -303,7 +303,7 @@ export default function RecorderLab() {
       <nav className="workspace-tabs" aria-label="พื้นที่ทดลอง Video SDK">
         <button className={view === 'demo' ? 'active' : ''} onClick={() => setView('demo')}>Camera demo</button>
         <button className={view === 'record' ? 'active' : ''} onClick={() => setView('record')}>Record & Upload</button>
-        <button className={view === 'durable' ? 'active' : ''} onClick={() => setView('durable')}>Durable upload</button>
+        <button className={view === 'direct' ? 'active' : ''} onClick={() => setView('direct')}>Direct upload</button>
         <button className={view === 'playback' ? 'active' : ''} onClick={() => setView('playback')}>Playback</button>
         <button className={view === 'implement' ? 'active' : ''} onClick={() => setView('implement')}>Implementation</button>
       </nav>
@@ -311,13 +311,13 @@ export default function RecorderLab() {
       {view === 'record' && (
         <>
           <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} onEvent={logEvent} />
-          {configured ? <IntegrationRecorder key={`${authChoice}:${orderRef}:${publicKey}`} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} config={config} onVideoId={setLastVideoId} onOpenPlayback={() => setView('playback')} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Record & Upload</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
+          {configured ? <DurableLab key={`${authChoice}:${orderRef}:${publicKey}`} config={config} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Record & Upload</span><h2>อัดแบบคลิปไม่หาย</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
         </>
       )}
-      {view === 'durable' && (
+      {view === 'direct' && (
         <>
           <SetupStep authChoice={authChoice} onAuthChoice={setAuthChoice} apiBaseUrl={apiBaseUrl} onApiBaseUrl={setApiBaseUrl} publicKey={publicKey} onPublicKey={setPublicKey} externalUserRef={externalUserRef} onExternalUserRef={setExternalUserRef} merchantId={merchantId} onMerchantId={setMerchantId} orderRef={orderRef} onOrderRef={setOrderRef} configured={configured} onConfigured={setConfigured} onEvent={logEvent} />
-          {configured ? <DurableLab key={`${authChoice}:${orderRef}:${publicKey}`} config={config} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Durable upload</span><h2>อัดแบบคลิปไม่หาย</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
+          {configured ? <IntegrationRecorder key={`${authChoice}:${orderRef}:${publicKey}`} orderRef={orderRef} externalUserRef={authChoice === 'a' ? externalUserRef : ''} merchantId={merchantId} config={config} onVideoId={setLastVideoId} onOpenPlayback={() => setView('playback')} onEvent={logEvent} /> : <section className="recorder-panel step-panel locked-step"><div className="step-number">2</div><div className="section-title"><div><span>Direct upload</span><h2>บันทึกหลักฐานวิดีโอ</h2></div><strong className="status">รอขั้นที่ 1</strong></div><p className="note">ใส่ค่าบัญชีทดสอบและ Order reference ก่อนเปิดกล้อง</p></section>}
         </>
       )}
       {view === 'playback' && <PlaybackLab config={config} initialVideoId={lastVideoId} authLabel={authChoice === 'a' ? 'Mode A' : 'Mode B'} onOpenSetup={() => setView('record')} onEvent={logEvent} />}
