@@ -95,7 +95,7 @@
         <button class="primary" id="liveStop" disabled>Stop and save</button>
         <button id="livePlay" disabled>Open video</button>
       </div>
-      <p class="status" id="liveStatus">Mode A · Enter your key to begin</p>
+      <p class="status" id="liveStatus">Mode A · ใส่ publishable key ก่อนเริ่ม</p>
       <p class="result" id="liveResult"></p>
       <p class="error" id="liveError"></p>
     </section>
@@ -239,8 +239,8 @@
       byId('modeABtn').classList.toggle('active', mode === 'a');
       byId('modeBBtn').classList.toggle('active', mode === 'b');
       byId('liveStatus').textContent = mode === 'a'
-        ? (byId('publicKey').value.trim() ? 'Mode A · Ready' : 'Mode A · Enter your key to begin')
-        : (window.PackikoPlainModeB?.active ? 'Mode B · Ready' : 'Mode B · Login OIDC to begin');
+        ? (byId('publicKey').value.trim() ? 'Mode A · พร้อมใช้งาน' : 'Mode A · ใส่ publishable key ก่อนเริ่ม')
+        : (window.PackikoPlainModeB?.active ? 'Mode B · พร้อมใช้งาน' : 'Mode B · เข้าสู่ระบบ OIDC ก่อนเริ่ม');
       const configSnippet = mode === 'a'
         ? `const config = {
     apiBaseUrl: 'https://video-uat.packiko.com',
@@ -312,9 +312,9 @@
     }
     window.renderPlainAuthMode = renderAuthMode;
     window.logPlainEvent = log;
-    byId('modeABtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'a'); renderAuthMode(); log('Auth', 'Selected Mode A'); });
-    byId('modeBBtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'b'); renderAuthMode(); log('Auth', 'Selected Mode B'); window.dispatchEvent(new Event('plain-mode-b-selected')); });
-    byId('publicKey').addEventListener('input', renderAuthMode);
+    byId('modeABtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'a'); renderAuthMode(); log('Auth', 'เลือก Mode A'); });
+    byId('modeBBtn').addEventListener('click', () => { sessionStorage.setItem('plainAuthMode', 'b'); renderAuthMode(); log('Auth', 'เลือก Mode B'); window.dispatchEvent(new Event('plain-mode-b-selected')); });
+    byId('publicKey').addEventListener('input', () => { renderAuthMode(); initDurableQueue(); });
     renderAuthMode();
 
     function cameraFlow(prefix, getRecorder, onClip) {
@@ -322,8 +322,8 @@
       let recorder = null;
       byId(prefix + 'Open').addEventListener('click', async () => {
         byId(prefix + 'Error').textContent = '';
-        byId(prefix + 'Status').textContent = 'Opening camera';
-        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Opening camera', location.origin);
+        byId(prefix + 'Status').textContent = 'กำลังเปิดกล้อง';
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'กำลังเปิดกล้อง', location.origin);
         try {
           recorder = getRecorder();
           capture?.dispose();
@@ -332,12 +332,12 @@
           byId(prefix + 'Video').removeAttribute('src');
           byId(prefix + 'Video').controls = false;
           byId(prefix + 'Start').disabled = false;
-          byId(prefix + 'Status').textContent = 'Camera ready';
-          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Camera ready', '', 'success');
+          byId(prefix + 'Status').textContent = 'กล้องพร้อม';
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'กล้องพร้อม', '', 'success');
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
-          byId(prefix + 'Status').textContent = 'Could not open camera';
-          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Camera failed', errorText(error), 'error');
+          byId(prefix + 'Status').textContent = 'เปิดกล้องไม่สำเร็จ';
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'เปิดกล้องไม่สำเร็จ', errorText(error), 'error');
         }
       });
       byId(prefix + 'Start').addEventListener('click', () => {
@@ -345,14 +345,14 @@
         capture.start();
         byId(prefix + 'Start').disabled = true;
         byId(prefix + 'Stop').disabled = false;
-        byId(prefix + 'Status').textContent = 'Recording';
-        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Recording started');
+        byId(prefix + 'Status').textContent = 'กำลังบันทึก';
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'เริ่มบันทึก');
       });
       byId(prefix + 'Stop').addEventListener('click', async () => {
         if (!capture || capture.state !== 'recording') return;
         byId(prefix + 'Stop').disabled = true;
-        byId(prefix + 'Status').textContent = 'Saving';
-        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Recording stopped');
+        byId(prefix + 'Status').textContent = 'กำลังบันทึกคลิป';
+        log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'หยุดบันทึก');
         try {
           const clip = await capture.stop();
           capture.dispose();
@@ -360,8 +360,8 @@
           await onClip(clip);
         } catch (error) {
           byId(prefix + 'Error').textContent = errorText(error);
-          byId(prefix + 'Status').textContent = 'Not saved';
-          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'Save failed', errorText(error), 'error');
+          byId(prefix + 'Status').textContent = 'ยังไม่ได้บันทึก';
+          log(prefix === 'demo' ? 'Camera demo' : 'Direct upload', 'บันทึกไม่สำเร็จ', errorText(error), 'error');
         }
       });
       return () => capture?.dispose();
@@ -376,8 +376,8 @@
       video.src = demoUrl;
       video.controls = true;
       video.muted = false;
-      byId('demoStatus').textContent = 'Ready to play';
-      log('Camera demo', 'Local playback ready', '', 'success');
+      byId('demoStatus').textContent = 'พร้อมเล่น';
+      log('Camera demo', 'คลิปพร้อมเล่นในเครื่อง', '', 'success');
       await video.play().catch(() => undefined);
     });
 
@@ -400,7 +400,7 @@
       byId('liveStatus').textContent = 'Complete';
       byId('livePlay').disabled = false;
       byId('playbackVideoId').value = videoId;
-      log('Record & Upload', 'Video API confirmed upload', 'videoId ' + videoId, 'success');
+      log('Direct upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'videoId ' + videoId, 'success');
     });
 
     byId('livePlay').addEventListener('click', async () => {
@@ -429,18 +429,18 @@
       try {
         const problem = configProblem();
         if (problem) throw new Error(problem);
-        byId('playbackStatus').textContent = 'Preparing playback';
-        log('Playback', 'Resolving videoId');
+        byId('playbackStatus').textContent = 'กำลังเตรียมเล่น';
+        log('Playback', 'กำลังขอ URL สำหรับเล่น');
         const result = await createPlayer(currentVideoConfig()).resolvePlaybackUrl(id);
         byId('playbackVideo').src = result.url;
-        byId('playbackStatus').textContent = 'Ready to play';
-        log('Playback', 'Playback ready', '', 'success');
+        byId('playbackStatus').textContent = 'พร้อมเล่น';
+        log('Playback', 'พร้อมเล่น', '', 'success');
         await byId('playbackVideo').play().catch(() => undefined);
       } catch (error) {
-        byId('playbackStatus').textContent = 'Playback failed';
+        byId('playbackStatus').textContent = 'เปิดเล่นไม่สำเร็จ';
         byId('playbackError').textContent = errorText(error);
         const hint = error instanceof PackikoError && (error.code === 'network_error' || error.code === 'origin_not_allowed') ? ' · check exact origin ' + location.origin : '';
-        log('Playback', 'Playback failed', errorText(error) + hint, 'error');
+        log('Playback', 'เปิดเล่นไม่สำเร็จ', errorText(error) + hint, 'error');
       }
     });
 
@@ -450,6 +450,8 @@
     let durableSession = null;
     const durableStageLabel = { queued: 'รออัปโหลด', uploading: 'กำลังอัปโหลด', uploaded: 'อัปโหลดแล้ว', attaching: 'กำลังผูกเอกสาร', retry: 'รอลองใหม่', review: 'ต้องตรวจสอบ' };
 
+    const durableStageSeen = {};
+    let durableResumeAnnounced = false;
     function renderDurableJobs() {
       if (!durableQueue) return;
       const snapshot = durableQueue.getSnapshot();
@@ -457,6 +459,19 @@
       box.textContent = '';
       if (snapshot.storageError) byId('durableError').textContent = 'Local storage มีปัญหา: ' + snapshot.storageError;
       if (!snapshot.hydrated) { box.textContent = 'กำลังอ่านคิวที่ค้างอยู่…'; return; }
+      if (!durableResumeAnnounced) {
+        durableResumeAnnounced = true;
+        log('Durable upload', snapshot.jobs.length
+          ? 'พบงานค้าง ' + snapshot.jobs.length + ' รายการ — คิวจะอัปโหลดต่อให้อัตโนมัติ'
+          : 'อ่านคิวเสร็จ ไม่มีงานค้าง', '', 'success');
+      }
+      for (const job of snapshot.jobs) {
+        // log เฉพาะตอน stage เปลี่ยน — progress ระหว่างอัปโหลดดูได้จากรายการด้านล่าง
+        if (durableStageSeen[job.id] !== job.stage) {
+          durableStageSeen[job.id] = job.stage;
+          log('Durable upload', 'งาน ' + job.orderRef + ' → ' + durableStageLabel[job.stage]);
+        }
+      }
       if (!snapshot.jobs.length) { box.textContent = 'ไม่มีงานค้าง — คลิปที่เข้าคิวแล้วรอด refresh, ปิดเบราว์เซอร์, เน็ตหลุด และ crash'; return; }
       for (const job of snapshot.jobs) {
         const row = document.createElement('div');
@@ -485,13 +500,16 @@
       if (durableQueue || configProblem()) return;
       // ครั้งเดียวต่อแอป — สร้างแล้วคิว resume งานค้างจาก IndexedDB เอง
       durableQueue = createUploadQueue(currentVideoConfig());
+      log('Durable upload', 'สร้างคิวแล้ว กำลังอ่านงานที่ค้างอยู่');
       durableQueue.subscribe(renderDurableJobs);
       durableQueue.onOutcome((outcome) => {
-        if (outcome.status === 'bound') log('Durable upload', 'Video API ยืนยันการอัปโหลดแล้ว', 'videoId ' + outcome.videoId, 'success');
+        if (outcome.status === 'bound') log('Durable upload', 'อัปโหลดและผูกเอกสารสำเร็จ', 'videoId ' + outcome.videoId, 'success');
         else log('Durable upload', 'งานในคิวไม่สำเร็จ', outcome.code + (outcome.message ? ' · ' + outcome.message : ''), 'error');
       });
       renderDurableJobs();
     }
+    // Mode B activate ทีหลังแบบ async — module script เรียกกลับมาสร้างคิวเมื่อ login เสร็จ
+    window.initPlainDurableQueue = initDurableQueue;
 
     function resetDurableButtons() {
       byId('durableVideo').srcObject = null;
@@ -518,19 +536,19 @@
           }),
         });
       }
-      byId('durableStatus').textContent = 'Opening camera';
+      byId('durableStatus').textContent = 'กำลังเปิดกล้อง';
       try {
         durableSession = await durableRecorder.start();
         byId('durableVideo').srcObject = durableSession.previewStream;
         byId('durableStart').disabled = true;
         byId('durableStop').disabled = false;
         byId('durableLeave').disabled = false;
-        byId('durableStatus').textContent = 'Recording — context ถูก freeze ที่จุดนี้';
-        log('Durable upload', 'Recording started');
+        byId('durableStatus').textContent = 'กำลังบันทึก — context ถูก freeze ที่จุดนี้';
+        log('Durable upload', 'เริ่มบันทึก');
       } catch (error) {
         byId('durableError').textContent = errorText(error);
-        byId('durableStatus').textContent = 'Could not start';
-        log('Durable upload', 'Start failed', errorText(error), 'error');
+        byId('durableStatus').textContent = 'เริ่มไม่สำเร็จ';
+        log('Durable upload', 'เริ่มไม่สำเร็จ', errorText(error), 'error');
       }
     });
 
@@ -538,11 +556,11 @@
       if (!durableSession) return;
       byId('durableStop').disabled = true;
       byId('durableLeave').disabled = true;
-      byId('durableStatus').textContent = 'Finalizing';
+      byId('durableStatus').textContent = 'กำลัง finalize คลิป';
       try {
         const job = await durableSession.stop();
         byId('durableStatus').textContent = 'คลิป durable แล้ว ไม่ต้องใช้เน็ต — อัปโหลดต่อให้เองเบื้องหลัง';
-        log('Durable upload', 'Clip durable — upload continues in background', 'job ' + job.id, 'success');
+        log('Durable upload', 'คลิป durable แล้ว — อัปโหลดต่อเบื้องหลัง', 'job ' + job.id, 'success');
       } catch (error) {
         // Storage ปฏิเสธคลิป: Blob แนบมากับ error ให้เสนอเป็นไฟล์ดาวน์โหลดแทน
         if (error && error.blob) {
@@ -554,7 +572,7 @@
         }
         byId('durableError').textContent = errorText(error);
         byId('durableStatus').textContent = 'บันทึกลง storage ไม่สำเร็จ';
-        log('Durable upload', 'Storage failed — clip offered as download', errorText(error), 'error');
+        log('Durable upload', 'เขียนลง storage ไม่สำเร็จ — เสนอคลิปเป็นไฟล์ดาวน์โหลดแทน', errorText(error), 'error');
       }
       durableSession = null;
       resetDurableButtons();
@@ -567,7 +585,7 @@
       durableSession = null;
       resetDurableButtons();
       byId('durableStatus').textContent = 'ออกจากหน้าจอแล้ว — คลิปที่อัดค้างถูกกู้เข้าคิว ดูรายการด้านล่าง';
-      log('Durable upload', 'Left screen mid-recording — dispose() rescued the clip into the queue', '', 'success');
+      log('Durable upload', 'ออกจากหน้าจอกลางอัด — dispose() กู้คลิปเข้าคิวแล้ว', '', 'success');
     });
 
     if (savedPanel === 'durablePanel') initDurableQueue();
@@ -580,7 +598,7 @@
 
     byId('copyLog').addEventListener('click', () => navigator.clipboard.writeText(logEntries.map((entry) => `[${entry.at}] [${entry.scope}] ${entry.message}${entry.detail ? ' · ' + entry.detail : ''}`).join('\n')));
     byId('clearLog').addEventListener('click', () => { logEntries.length = 0; byId('activityLog').textContent = ''; });
-    log('Example', 'Ready', 'origin ' + location.origin);
+    log('Example', 'พร้อมใช้งาน', 'origin ' + location.origin);
 
     window.addEventListener('pagehide', () => {
       disposeDemo();
@@ -623,7 +641,9 @@
       byId('oidcLogin').hidden = true;
       byId('oidcLogout').hidden = false;
       window.renderPlainAuthMode?.();
-      log('OIDC login complete', 'Mode B config is ready', 'success');
+      // login เสร็จแบบ async — สร้างคิว durable ตอนนี้เพื่อ resume งานค้าง (ตอนหน้าโหลด config ยังไม่พร้อม)
+      window.initPlainDurableQueue?.();
+      log('เข้าสู่ระบบ OIDC สำเร็จ', 'Mode B พร้อมใช้งาน', 'success');
     }
 
     async function initializeModeB() {
@@ -646,7 +666,7 @@
 
       byId('oidcLogin').disabled = true;
       showStatus('กำลังเชื่อมต่อ OIDC...');
-      log('Initializing OIDC', 'Public browser client configuration');
+      log('กำลังเชื่อมต่อ OIDC', 'public browser client');
 
       initializePromise = (async () => {
         try {
@@ -664,13 +684,13 @@
             byId('oidcLogin').hidden = false;
             byId('oidcLogout').hidden = true;
             window.renderPlainAuthMode?.();
-            log('OIDC client ready', 'Waiting for login');
+            log('OIDC พร้อม', 'รอเข้าสู่ระบบ');
           }
           byId('oidcLogin').disabled = false;
 
           if (!client.authenticated && sessionStorage.getItem('plainModeBAutoLogin') === '1') {
             sessionStorage.removeItem('plainModeBAutoLogin');
-            log('Redirecting to OIDC login');
+            log('กำลังพาไปหน้า login ของ OIDC');
             await client.login({ redirectUri: window.location.href });
           }
           return client;
@@ -682,7 +702,7 @@
           byId('oidcLogin').hidden = false;
           byId('oidcLogin').disabled = false;
           window.renderPlainAuthMode?.();
-          log('OIDC initialization failed', String(error), 'error');
+          log('เชื่อมต่อ OIDC ไม่สำเร็จ', String(error), 'error');
           return null;
         } finally {
           initializePromise = null;
@@ -706,14 +726,14 @@
 
       const client = await initializeModeB();
       if (!client || client.authenticated) return;
-      log('Redirecting to OIDC login');
+      log('กำลังพาไปหน้า login ของ OIDC');
       await client.login({ redirectUri: window.location.href });
     });
 
     byId('oidcLogout').addEventListener('click', async () => {
       if (!keycloak) return;
       delete window.PackikoPlainModeB;
-      log('Redirecting to OIDC logout');
+      log('กำลังออกจากระบบ OIDC');
       await keycloak.logout({ redirectUri: window.location.href });
     });
 
