@@ -32,7 +32,7 @@
     .log { background: #0c1925; color: #dbe7f0 }
     .log p { color: #8da4b6 }
     .log-list { max-height: 240px; overflow: auto; border-top: 1px solid #263847 }
-    .log-entry { display: grid; grid-template-columns: 72px 110px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid #263847; font: 12px/1.45 Consolas, monospace }
+    .log-entry { padding: 8px 0; border-bottom: 1px solid #263847; font: 12px/1.45 Consolas, monospace }
     .log-entry.error { color: #ff9ca9 }
     .protocol-warning { margin-top: 16px; padding: 12px 14px; border: 1px solid #e2b764; border-left: 4px solid #c88918; border-radius: 6px; background: #fff8e7; color: #70500e; line-height: 1.5 }
     .protocol-warning[hidden] { display: none }
@@ -52,7 +52,7 @@
     .mode-state.ready { background: #e3f3ea; color: #176a45 }
     pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font: 13px/1.55 Consolas, monospace }
     @media (max-width: 720px) { .workspace-tabs, .auth-grid { grid-template-columns: 1fr 1fr } }
-    @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } .log-entry, .auth-switch, .auth-grid { grid-template-columns: 1fr } }
+    @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } .auth-switch, .auth-grid { grid-template-columns: 1fr } }
   </style>
 </head>
 <body>
