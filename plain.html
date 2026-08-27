@@ -29,11 +29,22 @@
     .error { color: #a62538 }
     .result { color: #176a45 }
     .info { padding: 10px 12px; border-left: 3px solid #1681b7; background: #edf6fa; color: #526f82 }
-    .log { background: #0c1925; color: #dbe7f0 }
-    .log p { color: #8da4b6 }
-    .log-list { max-height: 240px; overflow: auto; border-top: 1px solid #263847 }
-    .log-entry { padding: 8px 0; border-bottom: 1px solid #263847; font: 12px/1.45 Consolas, monospace }
-    .log-entry.error { color: #ff9ca9 }
+    .activity-log { padding: 0; border-radius: 8px; background: #0c1925; color: #dbe7f0 }
+    .activity-log-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-bottom: 1px solid #263847 }
+    .activity-log-head span { color: #70b9e4; font-size: 10px; font-weight: 800; text-transform: uppercase }
+    .activity-log-head h2 { margin: 2px 0 0; font-size: 17px }
+    .activity-log-actions { display: flex; gap: 6px }
+    .activity-log-actions button { min-height: 34px; padding: 0 10px; border: 1px solid #496173; border-radius: 5px; background: transparent; color: #dbe7f0; font-size: 12px }
+    .activity-log-safety { margin: 0; padding: 9px 16px; border-bottom: 1px solid #263847; color: #8da4b6; font-size: 11px }
+    .activity-log-list { max-height: 250px; overflow: auto }
+    .activity-entry { display: grid; grid-template-columns: 72px 120px 1fr; gap: 10px; padding: 9px 16px; border-bottom: 1px solid #1d2d3a; font-size: 12px; line-height: 1.45 }
+    .activity-entry:last-child { border-bottom: 0 }
+    .activity-entry time { color: #7f96a8; font-family: "Cascadia Code", Consolas, monospace }
+    .activity-entry strong { color: #a9c9dc }
+    .activity-entry span { color: #dbe7f0 }
+    .activity-entry code { grid-column: 3; overflow-wrap: anywhere; color: #9db0bf }
+    .activity-entry--success { box-shadow: inset 3px 0 #39a974 }
+    .activity-entry--error { box-shadow: inset 3px 0 #e15d6f }
     .protocol-warning { margin-top: 16px; padding: 12px 14px; border: 1px solid #e2b764; border-left: 4px solid #c88918; border-radius: 6px; background: #fff8e7; color: #70500e; line-height: 1.5 }
     .protocol-warning[hidden] { display: none }
     .workspace-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; padding: 3px; border: 1px solid #c6d3dd; border-radius: 7px; background: #e7edf2 }
@@ -52,7 +63,7 @@
     .mode-state.ready { background: #e3f3ea; color: #176a45 }
     pre { overflow-x: auto; padding: 14px; border-radius: 6px; background: #0b1b29; color: #dce9f2; font: 13px/1.55 Consolas, monospace }
     @media (max-width: 720px) { .workspace-tabs, .auth-grid { grid-template-columns: 1fr 1fr } }
-    @media (max-width: 440px) { section { padding: 14px } .row button { width: 100% } h1 { font-size: 27px } .auth-switch, .auth-grid { grid-template-columns: 1fr } }
+    @media (max-width: 440px) { section { padding: 14px } .activity-log { padding: 0 } .row button { width: 100% } h1 { font-size: 27px } .auth-switch, .auth-grid { grid-template-columns: 1fr } .activity-entry { grid-template-columns: 64px 1fr } .activity-entry span, .activity-entry code { grid-column: 1 / -1 } }
   </style>
 </head>
 <body>
@@ -161,11 +172,13 @@
       <p>The SDK is treated as a black box. Store the returned <code>videoId</code> with your document.</p>
     </section>
 
-    <section class="log">
-      <h2>Activity Log</h2>
-      <p>ไม่บันทึก publishable key, user token, upload URL หรือ Playback URL</p>
-      <div class="row"><button id="copyLog">Copy log</button><button id="clearLog">Clear</button></div>
-      <div class="log-list" id="activityLog"></div>
+    <section class="activity-log" aria-labelledby="plainActivityTitle">
+      <div class="activity-log-head">
+        <div><span>Diagnostics</span><h2 id="plainActivityTitle">Activity Log</h2></div>
+        <div class="activity-log-actions"><button id="copyLog">คัดลอก Log</button><button id="clearLog">ล้าง</button></div>
+      </div>
+      <p class="activity-log-safety">Log นี้ไม่บันทึก publishable key, user token, upload URL หรือ Playback URL</p>
+      <div class="activity-log-list" id="activityLog" role="log" aria-live="polite"></div>
     </section>
   </main>
 
@@ -179,8 +192,19 @@
       const entry = { at: new Date().toLocaleTimeString('th-TH', { hour12: false }), scope, message, detail, level };
       logEntries.push(entry);
       const row = document.createElement('div');
-      row.className = 'log-entry ' + level;
-      row.textContent = `[${entry.at}] ${scope} · ${message}${detail ? ' · ' + detail : ''}`;
+      row.className = 'activity-entry activity-entry--' + level;
+      const time = document.createElement('time');
+      time.textContent = entry.at;
+      const scopeEl = document.createElement('strong');
+      scopeEl.textContent = scope;
+      const messageEl = document.createElement('span');
+      messageEl.textContent = message;
+      row.append(time, scopeEl, messageEl);
+      if (detail) {
+        const detailEl = document.createElement('code');
+        detailEl.textContent = detail;
+        row.appendChild(detailEl);
+      }
       byId('activityLog').appendChild(row);
       byId('activityLog').scrollTop = byId('activityLog').scrollHeight;
     }
