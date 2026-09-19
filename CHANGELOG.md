@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-20
+
+- `@packiko/video-sdk` now installs from public npm (0.4.0). The `.npmrc` registry
+  mapping is gone; no GitHub token is needed to run this example.
+
 ## 2026-08-25
 
 - Reworked the repository as a Partner-facing black-box integration example.

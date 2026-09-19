@@ -69,7 +69,7 @@ and the Example origin must be accepted by both the IdP client and the Video key
 Load the public browser build and use only its exported API:
 
 ```html
-<script src="https://sdk-uat.packiko.com/video/v0.3.0/index.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@packiko/video-sdk@0.4.0"></script>
 <script>
   const { createPlayer, createRecorder } = PackikoVideo
   const config = { apiBaseUrl, publicKey }
