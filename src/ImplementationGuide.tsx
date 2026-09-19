@@ -11,7 +11,7 @@ const snippets: Record<GuideTab, { title: string; copy: string; code: (authChoic
   config: {
     title: '1. ตั้งค่า SDK',
     copy: 'Mode A ไม่มี OIDC clientId ส่วน Mode B เพิ่ม token provider จากระบบ login ของ Partner',
-    code: (authChoice) => `// pnpm add @packiko/video-sdk   (ติดตั้งจาก GitHub Packages)
+    code: (authChoice) => `// pnpm add @packiko/video-sdk   (ติดตั้งจาก public npm)
 import {
   createUploadQueue,
   createDurableRecorder,

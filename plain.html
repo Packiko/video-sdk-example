@@ -182,7 +182,7 @@
     </section>
   </main>
 
-  <script src="https://sdk-uat.packiko.com/video/v0.3.1/index.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@packiko/video-sdk@0.4.0"></script>
   <script>
     const { createPlayer, createRecorder, createUploadQueue, createDurableRecorder, describeError, PackikoError } = PackikoVideo;
     const byId = (id) => document.getElementById(id);
@@ -284,7 +284,7 @@
 <button id="start">เริ่มอัด</button> <button id="stop">หยุด</button>
 
 <!-- UAT · บน production เปลี่ยน host เป็น sdk.packiko.com -->
-<script src="https://sdk-uat.packiko.com/video/v0.3.1/index.global.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/@packiko/video-sdk@0.4.0"><\/script>
 <script>
   const { createUploadQueue, createDurableRecorder, createPlayer } = PackikoVideo
 
